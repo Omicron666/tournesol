@@ -2,12 +2,12 @@ import React from 'react';
 import { TFunction } from 'react-i18next';
 import { SvgIconComponent } from '@mui/icons-material';
 import {
-  Entity,
-  EntityNoExtraField,
+  ContributorRating,
+  RateLater,
   Recommendation,
   RelatedEntity,
-  Video,
-  VideoSerializerWithCriteria,
+  TournesolUserSettings,
+  EntityNoExtraField,
 } from 'src/services/openapi';
 
 export type JSONValue =
@@ -28,20 +28,16 @@ export type ActionList = Array<
 
 export type CriteriaValuesType = { [s: string]: number | undefined };
 
-export type RelatedEntityObject =
-  | EntityNoExtraField
-  | RelatedEntity
-  | Recommendation;
-export type VideoObject = Video | VideoSerializerWithCriteria;
+interface SimpleEntityResult {
+  entity: RelatedEntity;
+}
 
-export type PollStats = {
-  userCount: number;
-  lastMonthUserCount: number;
-  comparedEntityCount: number;
-  lastMonthComparedEntityCount: number;
-  comparisonCount: number;
-  lastMonthComparisonCount: number;
-};
+export type EntityResult =
+  | ContributorRating
+  | RateLater
+  | Recommendation
+  | SimpleEntityResult;
+export type EntityObject = RelatedEntity | EntityNoExtraField;
 
 /**
  * An exhaustive list of route ids helping to enforce type checking in each
@@ -50,10 +46,20 @@ export type PollStats = {
 export enum RouteID {
   // public and collective routes
   Home = 'home',
+  PwaEntryPoint = 'pwaEntryPoint',
+  // new feeds
+  FeedForYou = 'feedForYou',
+  FeedTopItems = 'feedTopItems',
+  Search = 'search',
+  // deprecated feed, replaced by FeedForYou, should be deleted later in 2025
+  FeedCollectiveRecommendations = 'feedCollectiveRecommendations',
+  // depracated feed, replaced by FeedTopItems, should be deleted later in 2025
   CollectiveRecommendations = 'collectiveRecommendations',
   EntityAnalysis = 'entityAnalysis',
   FAQ = 'FAQ',
+  TALKS = 'TALKS',
   About = 'about',
+  Criteria = 'criteria',
   // public yet personal routes
   PublicPersonalRecommendationsPage = 'publicPersonalRecommendations',
   // private and personal routes
@@ -62,9 +68,19 @@ export enum RouteID {
   MyComparedItems = 'myComparedItems',
   MyRateLaterList = 'myRateLaterList',
   MyFeedback = 'myFeedback',
+  MyProofByKeyword = 'myProofByKeyword',
 }
 
 export type OrderedDialogs = {
+  [key: string]: {
+    title: string;
+    messages: Array<string>;
+    // If false, the dialog should not be displayed on mobile devices.
+    mobile?: boolean;
+  };
+};
+
+export type OrderedTips = {
   [key: string]: { title: string; messages: Array<string> };
 };
 
@@ -85,6 +101,12 @@ export type SelectablePoll = {
   // the recommendation link. can be date=Month to retrieve the entities
   // uploaded during the last month for instance
   defaultRecoSearchParams?: string;
+  // default filters used by the feed Top Items, formatted as URL search
+  // parameters
+  defaultFiltersFeedTopItems?: string;
+  // default filters used by the feed For You, formatted as URL search
+  // parameters
+  defaultFiltersFeedForYou?: string;
   // enable or disable the public personal recommendations feature.
   allowPublicPersonalRecommendations?: boolean;
   displayOrder: number;
@@ -94,7 +116,7 @@ export type SelectablePoll = {
   mainCriterionName: string;
   // the path used as URL prefix, must include leading and trailing slash
   path: string;
-  // a list route id that will be disable in `PollRoutes` and `SideBar`
+  // a list of route id that will be disabled in `PollRoutes` and `SideBar`
   disabledRouteIds?: Array<RouteID>;
   iconComponent: SvgIconComponent;
   withSearchBar: boolean;
@@ -103,11 +125,21 @@ export type SelectablePoll = {
   // comparisons as public, and contributor ratings must be created with
   // is_public = false
   comparisonsCanBePublic?: boolean;
+  // indicates if empty entity selectors should be filled by default
+  autoFillEmptySelectors?: boolean;
   tutorialLength?: number;
   // can be used by comparison series to limit the pool of entities
   // that are suggested after each comparison
-  tutorialAlternatives?: () => Promise<Array<Entity | Recommendation>>;
+  tutorialAlternatives?: () => Promise<Array<EntityResult>>;
   tutorialDialogs?: (t: TFunction) => OrderedDialogs;
+  // a set of actions that will be displayed within the configured
+  // `tutorialDialogs`, at the configured indexes, next to the main button
+  tutorialDialogActions?: (t: TFunction) => {
+    [key: string]: { action: React.ReactNode };
+  };
+  // if `pointerFine` is false, the tips related to the mobile interface
+  // should be returned
+  tutorialTips?: (t: TFunction, pointerFine?: boolean) => OrderedTips;
   // redirect to this page after the last comparison is submitted
   tutorialRedirectTo?: string;
   // if true, the two UIDs present in the URL will be kept after the redirection
@@ -118,3 +150,15 @@ export type SelectablePoll = {
   // entities
   extraMetadataOrderBy?: Array<string>;
 };
+
+/**
+ * Useful to dynamically retrieve the user's settings of the current poll.
+ *
+ * Ex:
+ *
+ *  const {name: pollName} = useCurrentPoll();
+ *  const userSettings = useSelector(selectSettings).settings;
+ *
+ *  const displayThat = userSettings?.[pollName as PollUserSettingsKeys]?.displayThat ?? true;
+ */
+export type PollUserSettingsKeys = keyof Omit<TournesolUserSettings, 'general'>;

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'none';
+        base-uri 'self';
+        connect-src 'self' %REACT_APP_API_URL% %REACT_APP_WEBSITE_ANALYTICS_URL% %REACT_APP_CSP_CONNECT_SRC%;
+        font-src 'self';
+        frame-src %REACT_APP_CSP_FRAME_SRC%;
+        img-src 'self' %REACT_APP_CSP_IMAGE_SRC%;
+        manifest-src 'self';
+        object-src 'none';
+        script-src 'self' %REACT_APP_CSP_SCRIPT_SRC%;
+        style-src 'self' 'unsafe-inline';
+    ">
+
+    <meta charset="utf-8" />
+    <link rel="icon" href="/icons/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Tournesol is an open source platform which aims to collaboratively identify top videos of public interest by eliciting contributors' judgements on content quality. We hope to contribute to making today's and tomorrow's large-scale algorithms robustly beneficial for all of humanity."
+    />
+    <!--DJANGO_META_TAGS-->
+    <link rel="apple-touch-icon" href="/icons/maskable-icon-512x512.png" />
+    <!--
+      manifest.json provides metadata used when your web app is installed on a
+      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+    -->
+    <link rel="manifest" href="/manifest.json" />
+    <style>
+      @font-face {
+        font-family: Poppins;
+        font-weight: 1 500;
+        src: url(/fonts/Poppins-Light.woff2);
+      }
+      @font-face {
+        font-family: Poppins;
+        font-weight: 501 1000;
+        src: url(/fonts/Poppins-Regular.woff2);
+      }
+      @font-face {
+        font-family: Poppins-Bold;
+        font-weight: 1 1000;
+        src: url(/fonts/Poppins-SemiBold.woff2);
+      }
+    </style>
+    <title>Tournesol</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+  </body>
+</html>

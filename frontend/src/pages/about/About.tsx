@@ -1,13 +1,12 @@
 import React from 'react';
 import { useTranslation, Trans } from 'react-i18next';
-import { Link as RouterLink } from 'react-router-dom';
+
 import makeStyles from '@mui/styles/makeStyles';
 import { Grid, Typography, Box, Card, Link, Paper } from '@mui/material';
 
-import { ContentHeader } from 'src/components';
+import { ContentHeader, ExternalLink, InternalLink } from 'src/components';
 import {
   discordTournesolInviteUrl,
-  getWikiBaseUrl,
   githubTournesolUrl,
   linkedInTournesolUrl,
   whitePaperUrl,
@@ -20,9 +19,6 @@ const useStyles = makeStyles(() => ({
     padding: '32px 0px 32px 0px',
     justifyContent: 'center',
   },
-  noMaxWidth: {
-    maxWidth: '100%',
-  },
   container: {
     display: 'flex',
     justifyContent: 'center',
@@ -33,7 +29,7 @@ const useStyles = makeStyles(() => ({
     boxShadow:
       '0px 0px 8px rgba(0, 0, 0, 0.02), 0px 2px 4px rgba(0, 0, 0, 0.05)',
     borderRadius: 4,
-    padding: 8,
+    padding: '16px',
     width: '100%',
     background: '#FFFFFF',
   },
@@ -42,7 +38,7 @@ const useStyles = makeStyles(() => ({
   },
 }));
 
-const PeopleCard = ({
+const CoreTeamCard = ({
   name,
   image,
   institution,
@@ -75,19 +71,66 @@ const PeopleCard = ({
   );
 };
 
+const ContributorCard = ({
+  name,
+  image,
+  description,
+  website,
+}: {
+  name: string;
+  image: string;
+  description: string;
+  website: string;
+}) => {
+  const classes = useStyles();
+
+  return (
+    <Link
+      href={website}
+      rel="noopener"
+      underline="none"
+      color="inherit"
+      variant="inherit"
+      display="flex"
+    >
+      <Card className={classes.card}>
+        <Grid container spacing={2}>
+          <Grid item xs={4} container alignItems="center">
+            <img
+              src={image}
+              width="100%"
+              style={{
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '50%',
+              }}
+            />
+          </Grid>
+          <Grid item xs={8}>
+            <Typography variant="h3">{name}</Typography>
+            <Typography fontSize="90%">{description}</Typography>
+          </Grid>
+        </Grid>
+      </Card>
+    </Link>
+  );
+};
+
 const ContentBox = ({
   children,
   className,
+  maxWidth = '640px',
 }: {
   children?: React.ReactNode;
   className?: string;
+  maxWidth?: string;
 }) => {
   return (
     <Box
       className={className}
       display="flex"
       flexDirection="column"
-      maxWidth="640px"
+      maxWidth={maxWidth}
       alignItems="flex-start"
     >
       {children}
@@ -105,7 +148,7 @@ const AboutPage = () => {
       <Grid
         container
         className={classes.root}
-        sx={{ background: '#1282B2', color: 'white' }}
+        sx={{ bgcolor: 'background.emphatic', color: 'white' }}
       >
         <Grid item xs={12} className={classes.container}>
           <ContentBox>
@@ -113,55 +156,32 @@ const AboutPage = () => {
             <Typography paragraph>
               <Trans t={t} i18nKey="about.introductionTournesol">
                 Tournesol is an open source platform which aims to
-                collaboratively identify top videos of public utility by
+                collaboratively identify top videos of public interest by
                 eliciting contributors&apos; judgements on content quality. We
                 hope to contribute to making today&apos;s and tomorrow&apos;s
                 large-scale algorithms robustly beneficial for all of humanity.
                 Find out more with our{' '}
-                <a
-                  href={whitePaperUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: 'white' }}
-                >
+                <ExternalLink href={whitePaperUrl} sx={{ color: 'white' }}>
                   white paper
-                </a>
+                </ExternalLink>
                 , our{' '}
-                <a
-                  href={getWikiBaseUrl()}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: 'white' }}
-                >
-                  wiki
-                </a>
-                , our{' '}
-                <a
-                  href={githubTournesolUrl}
-                  target="_blank"
-                  style={{ color: 'white' }}
-                  rel="noreferrer"
-                >
+                <ExternalLink href={githubTournesolUrl} sx={{ color: 'white' }}>
                   GitHub
-                </a>
+                </ExternalLink>
                 , our{' '}
-                <a
+                <ExternalLink
                   href={discordTournesolInviteUrl}
-                  target="_blank"
-                  style={{ color: 'white' }}
-                  rel="noreferrer"
+                  sx={{ color: 'white' }}
                 >
                   Discord
-                </a>
+                </ExternalLink>
                 , or our{' '}
-                <a
+                <ExternalLink
                   href={linkedInTournesolUrl}
-                  target="_blank"
-                  style={{ color: 'white' }}
-                  rel="noreferrer"
+                  sx={{ color: 'white' }}
                 >
                   LinkedIn page
-                </a>
+                </ExternalLink>
                 .
               </Trans>
             </Typography>
@@ -197,7 +217,7 @@ const AboutPage = () => {
       <Grid
         container
         className={classes.root}
-        sx={{ background: '#1282B2', color: 'white' }}
+        sx={{ bgcolor: 'background.emphatic', color: 'white' }}
       >
         <Grid item xs={12} className={classes.container}>
           <ContentBox>
@@ -210,9 +230,13 @@ const AboutPage = () => {
             <Typography paragraph>
               <Trans t={t} i18nKey="about.considerHelpingWithDonation">
                 If you can, please consider helping us{' '}
-                <Link component={RouterLink} to="/about/donate" color="inherit">
+                <InternalLink
+                  to="/about/donate"
+                  color="inherit"
+                  underline="always"
+                >
                   with a donation
-                </Link>
+                </InternalLink>
                 .
               </Trans>
             </Typography>
@@ -237,12 +261,19 @@ const AboutPage = () => {
           </ContentBox>
         </Grid>
 
-        <Grid container item xs={12} md={9} className={classes.container}>
+        <Grid
+          container
+          item
+          xs={12}
+          md={8}
+          xl={6}
+          className={classes.container}
+        >
           <Grid item xs={12} sm={4} className={classes.container}>
-            <PeopleCard
+            <CoreTeamCard
               name="Lê Nguyên Hoang"
               image="/people/Le.jpeg"
-              institution=""
+              institution="Calicarpa"
               role={t('about.rolePresident')}
               title="Dr. in Mathematics"
               job="AI Researcher and Communicator"
@@ -250,52 +281,117 @@ const AboutPage = () => {
           </Grid>
 
           <Grid item xs={12} sm={4} className={classes.container}>
-            <PeopleCard
+            <CoreTeamCard
               name="Louis Faucon"
               image="/people/Louis.jpeg"
               institution="Oracle Labs"
               role={t('about.roleTreasurer')}
               title="Dr. in Computer Science"
-              job="Software engineer"
+              job="Machine Learning Engineer"
             />
           </Grid>
 
           <Grid item xs={12} sm={4} className={classes.container}>
-            <PeopleCard
+            <CoreTeamCard
               name="Aidan Jungo"
               image="/people/Aidan.jpg"
-              institution="CFS Engineering SA"
+              institution="CFF"
               role={t('about.roleSecretary')}
               title="Master of Science"
-              job="Research Scientist"
+              job="Project Manager"
             />
           </Grid>
 
           <Grid item xs={12} sm={4} className={classes.container}>
-            <PeopleCard
+            <CoreTeamCard
               name="Romain"
               image="/people/Tournecat.jpeg"
               institution=""
-              role="Association employee"
-              title="Cat lover"
+              role="Developer"
+              title=""
               job="Senior Software Engineer"
             />
           </Grid>
 
           <Grid item xs={12} sm={4} className={classes.container}>
-            <PeopleCard
+            <CoreTeamCard
               name="Adrien Matissart"
               image="/people/Adrien.jpeg"
-              institution="Association Tournesol"
-              title=""
-              role=""
+              institution="Akselos"
+              title="Master of Science"
+              role="Technical Lead"
               job="Senior Software Engineer"
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={4} className={classes.container}>
+            <CoreTeamCard
+              name="Titouan Lustin"
+              image="/people/Titouan.jpg"
+              institution="UTC"
+              title="Master of Science"
+              role="Communication & Events"
+              job="Engineer"
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={4} className={classes.container}>
+            <CoreTeamCard
+              name="Victor Fersing"
+              image="/people/Victor.jpg"
+              institution="La Fabrique Sociale"
+              title=""
+              role="Communication & Events"
+              job="Youtuber"
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={4} className={classes.container}>
+            <CoreTeamCard
+              name="Jean-Lou"
+              image="/people/JeanLou.jpg"
+              institution="AprèsLaBière"
+              title=""
+              role="Communication & Events"
+              job="Journalist & Youtuber"
             />
           </Grid>
         </Grid>
       </Grid>
 
       <Grid container className={classes.root}>
+        <Grid item xs={12} className={classes.container}>
+          <ContentBox>
+            <Typography variant="h3">
+              {t('about.significantContributors')}
+            </Typography>
+            <Typography paragraph>
+              {t('about.weThankOurContributors')}
+            </Typography>
+          </ContentBox>
+        </Grid>
+
+        <Grid container item xs={12} md={9} className={classes.container}>
+          <Grid item xs={12} sm={6} className={classes.container}>
+            <ContributorCard
+              name="Sergei"
+              image="/people/Sergei.jpg"
+              description={t('about.sergeiDescription')}
+              website="https://linkedin.com/in/sergeivolodin"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} className={classes.container}>
+            <ContributorCard
+              name="Michael Witrant"
+              image="/people/sigmike.png"
+              description={t('about.sigmikeDescription')}
+              website="https://github.com/sigmike"
+            />
+          </Grid>
+        </Grid>
+      </Grid>
+
+      <Grid container className={classes.root} maxWidth="1000px" margin="auto">
         <Grid item xs={12} className={classes.container}>
           <ContentBox>
             <Typography variant="h1">
@@ -305,7 +401,7 @@ const AboutPage = () => {
         </Grid>
 
         <Grid item xs={12} className={classes.container}>
-          <ContentBox className={classes.card}>
+          <ContentBox className={classes.card} maxWidth="100%">
             <img height="84px" src="/logos/EPFL_Logo.png" />
             <Typography variant="h4">
               {t('about.partnershipWithEpfl')}
@@ -316,14 +412,14 @@ const AboutPage = () => {
           </ContentBox>
         </Grid>
 
-        <Grid item xs={12} md={4} className={classes.container}>
+        <Grid item xs={12} md={6} className={classes.container}>
           <Link
             href="https://www.polyconseil.fr/"
             rel="noopener"
-            target="_blank"
             underline="none"
             color="inherit"
             variant="inherit"
+            display="flex"
           >
             <ContentBox className={classes.card}>
               <img
@@ -341,14 +437,14 @@ const AboutPage = () => {
           </Link>
         </Grid>
 
-        <Grid item xs={12} md={4} className={classes.container}>
+        <Grid item xs={12} md={6} className={classes.container}>
           <Link
             href="https://kleis.ch/"
             rel="noopener"
-            target="_blank"
             underline="none"
             color="inherit"
             variant="inherit"
+            display="flex"
           >
             <ContentBox className={classes.card}>
               <img height="64px" src="/logos/Kleis_Logo.svg" />
@@ -361,13 +457,26 @@ const AboutPage = () => {
             </ContentBox>
           </Link>
         </Grid>
+
+        <Grid item xs={12} className={classes.container}>
+          <Link
+            href="https://www.devoxx.fr/"
+            rel="noopener"
+            underline="none"
+            color="inherit"
+            variant="inherit"
+          >
+            <ContentBox className={classes.card} maxWidth="100%">
+              <img height="64px" src="/logos/devoxx_france_logo.png" />
+              <Typography paragraph>
+                {t('about.collaborationWithDevoxx')}
+              </Typography>
+            </ContentBox>
+          </Link>
+        </Grid>
       </Grid>
 
-      <Grid
-        container
-        className={classes.root}
-        sx={{ bgcolor: 'background.menu' }}
-      >
+      <Grid container className={classes.root}>
         <Grid item xs={12} md={6} className={classes.container}>
           <ContentBox>
             <img height="64px" src="/logos/Foss_Logo.png" />
@@ -379,13 +488,11 @@ const AboutPage = () => {
                 As Tournesol is an open source project, we have been lucky to
                 benefit from contributions by multiple volunteers. Find our
                 wonderful contributors on{' '}
-                <a
+                <ExternalLink
                   href={`${githubTournesolUrl}/graphs/contributors`}
-                  target="_blank"
-                  rel="noreferrer"
                 >
                   Github Contributors
-                </a>
+                </ExternalLink>
               </Trans>
             </Typography>
           </ContentBox>
@@ -398,15 +505,16 @@ const AboutPage = () => {
           xs={12}
           sm={12}
           md={10}
-          lg={8}
-          xl={8}
+          lg={6}
+          xl={6}
           className={classes.container}
         >
-          <ContentBox className={classes.noMaxWidth}>
-            <Paper sx={{ background: '#1282B2', color: 'white', p: 2 }} square>
-              <PublicDownloadSection />
-            </Paper>
-          </ContentBox>
+          <Paper
+            sx={{ bgcolor: 'background.emphatic', color: 'white', p: 2 }}
+            square
+          >
+            <PublicDownloadSection />
+          </Paper>
         </Grid>
       </Grid>
     </>

@@ -99,7 +99,12 @@ class EntityType(ABC):
         func = cls._get_meta_filter_func(asked_func)
 
         if func:
-            return func(value)
+            try:
+                return func(value)
+            except ValueError as exc:
+                raise ValidationError(
+                    f"invalid value '{value}' for function '{asked_func}'"
+                ) from exc
         return value
 
     @classmethod
@@ -178,6 +183,10 @@ class EntityType(ABC):
         return qst
 
     @classmethod
+    def get_filter_date_field(cls):
+        return "add_time"
+
+    @classmethod
     def filter_date_lte(cls, qs, max_date):
         return qs.filter(add_time__lte=max_date)
 
@@ -217,7 +226,7 @@ class EntityType(ABC):
     def update_metadata_field(self) -> None:
         raise NotImplementedError
 
-    def refresh_metadata(self, *, force=False, save=True):
+    def refresh_metadata(self, *, force=False, save=True, **kwargs):
         if not force and not self.metadata_needs_to_be_refreshed():
             logging.debug(
                 "Not refreshing metadata for entity %s. Last attempt at %s",
@@ -233,7 +242,7 @@ class EntityType(ABC):
             # or unexpected errors in the refresh process.
             self.instance.save(update_fields=["last_metadata_request_at"])
 
-        self.update_metadata_field()
+        self.update_metadata_field(**kwargs)
         # Ensure that the metadata format is valid after refresh
         self.instance.metadata = self.cleaned_metadata
         self.instance.metadata_timestamp = timezone.now()

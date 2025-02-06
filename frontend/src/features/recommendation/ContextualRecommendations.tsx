@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import SelectorListBox, {
+import EntityTabsBox, {
   EntitiesTab,
 } from 'src/features/entity_selector/EntityTabsBox';
 import { PollsService, UsersService } from 'src/services/openapi';
@@ -32,7 +32,7 @@ const ContextualRecommendations = ({ contextUid, uploader }: Props) => {
             },
           });
           const results = response.results ?? [];
-          return results.filter((entity) => entity.uid !== contextUid);
+          return results.filter((reco) => reco.entity.uid !== contextUid);
         },
       });
     tabs.push({
@@ -46,7 +46,9 @@ const ContextualRecommendations = ({ contextUid, uploader }: Props) => {
         });
         const results = response.results ?? [];
         return results.map(({ entity_a, entity_b }) =>
-          entity_a.uid === contextUid ? entity_b : entity_a
+          entity_a.uid === contextUid
+            ? { entity: entity_b }
+            : { entity: entity_a }
         );
       },
       disabled: !isLoggedIn,
@@ -54,7 +56,7 @@ const ContextualRecommendations = ({ contextUid, uploader }: Props) => {
     return tabs;
   }, [t, pollName, uploader, contextUid, isLoggedIn]);
 
-  return <SelectorListBox tabs={tabs} width="auto" maxHeight="none" withLink />;
+  return <EntityTabsBox tabs={tabs} width="auto" maxHeight="none" withLink />;
 };
 
 export default ContextualRecommendations;

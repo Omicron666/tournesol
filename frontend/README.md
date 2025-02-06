@@ -1,4 +1,4 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app), using the [Redux](https://redux.js.org/) and [Redux Toolkit](https://redux-toolkit.js.org/) template.
+This project is developped and built with [Vite](https://vite.dev), using [React](https://react.dev), [Redux](https://redux.js.org/) and [Redux Toolkit](https://redux-toolkit.js.org/).
 
 ## Setup
 
@@ -13,7 +13,7 @@ This setup assumes that an API server is already configured.
 URLs and credentials can be configured in [.env.development](./.env.development).
 
 Requirements:
- * Node.js 14
+ * Node.js 18
  * yarn
 
 Setup:
@@ -65,27 +65,18 @@ It correctly bundles React in production mode and optimizes the build for the be
 The build is minified and the filenames include the hashes.<br />
 Your app is ready to be deployed!
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `yarn eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
 
 ## Learn More
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+You can learn more in the [Vite documentation](https://vitejs.dev/guide/).
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+To learn React, check out the [React documentation](https://react.dev/learn).
 
 ## Copyright & License
 
-Copyright 2021-2022 Association Tournesol and contributors.
+### Source code
+
+Copyright 2021-2023 Association Tournesol and contributors.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
@@ -100,5 +91,75 @@ Copyright 2021-2022 Association Tournesol and contributors.
     You should have received a copy of the GNU Affero General Public License
     along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-Included license:
- - [AGPL-3.0-or-later](./LICENSE)
+See the full legal code [AGPL-3.0-or-later][lic-frontend-agpl-3.0-or-later].
+
+### Images
+
+#### Tournesol criteria icons
+
+    Copyright 2021 Association Tournesol - Author Chris Vossen
+
+    Tournesol Criteria Icons are licensed under the
+    Creative Commons Attribution 4.0 International (CC BY 4.0).
+
+    You are free to share, copy and redistribute the material in any medium
+    or format, and/or to adapt remix, transform, and build upon the material
+    for any purpose, even commercially, as long as you give appropriate
+    credit, provide a link to the license, and indicate if changes were made.
+    You may do so in any reasonable manner, but not in any way that suggests
+    the licensor endorses you or your use.
+
+    You should have received a copy of the license along with this
+    work. If not, see <https://creativecommons.org/licenses/by/4.0/>.
+
+See the full legal code [CC BY 4.0][lic-frontend-cc-by-4.0].
+
+Affected materials:
+- `public/images/criteriaIcons/reliability.svg`
+- `public/images/criteriaIcons/pedagogy.svg`
+- `public/images/criteriaIcons/importance.svg`
+- `public/images/criteriaIcons/layman_friendly.svg`
+- `public/images/criteriaIcons/entertaining_relaxing.svg`
+- `public/images/criteriaIcons/engaging.svg`
+- `public/images/criteriaIcons/diversity_inclusion.svg`
+- `public/images/criteriaIcons/better_habits.svg`
+- `public/images/criteriaIcons/backfire_risk.svg`
+
+[lic-frontend-agpl-3.0-or-later]: ./LICENSE.AGPL-3.0-or-later.txt
+[lic-frontend-cc-by-4.0]: ./LICENSE.CC-BY-4.0.txt
+[lic-frontend-mpl-2.0]: ./LICENSE.MPL-2.0.txt
+
+#### Firefox browser logo
+
+    Copyright 2019 Mozilla Corporation
+
+    Firefox Browser logo is licensed under the
+    Mozilla Public License Version 2.0 (MPL 2.0).
+
+    You should have received a copy of the license along with this
+    work. If not, see <https://www.mozilla.org/en-US/MPL/2.0/>.
+
+See the full legal code
+[Mozilla Public License Version 2.0][lic-frontend-mpl-2.0].
+
+Affected materials:
+- `public/logos/Fx-Browser-icon-fullColor.svg`
+
+#### Edge browser logo
+
+    Copyright 2019 Microsoft Corporation
+
+Affected materials:
+- `public/logos/Edge-Browser-icon-fullColor.svg`
+
+### Texts
+
+The specific texts of the front end's Terms of Service and the Privacy Policy
+are dedicated to the public domain as stated by the license Creative Commons
+Zero v1.0 Universal.
+
+See the [human-readable disclaimer][cc0-1.0-disclaimer], or the
+[full legal code][cc0-1.0-full-legalcode] for more information.
+
+[cc0-1.0-disclaimer]: https://creativecommons.org/publicdomain/zero/1.0/
+[cc0-1.0-full-legalcode]: https://creativecommons.org/publicdomain/zero/1.0/legalcode

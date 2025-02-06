@@ -1,19 +1,17 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { Redirect, useParams } from 'react-router-dom';
 
-import { Box, Button, Collapse, Grid, Paper, Typography } from '@mui/material';
-import { Compare } from '@mui/icons-material';
+import { Box, Collapse, Grid, Paper, Typography } from '@mui/material';
 
 import CollapseButton from 'src/components/CollapseButton';
 import CriteriaBarChart from 'src/components/CriteriaBarChart';
 import { VideoPlayer } from 'src/components/entity/EntityImagery';
 import CriteriaScoresDistribution from 'src/features/charts/CriteriaScoresDistribution';
-import ShareMenuButton from 'src/features/menus/ShareMenuButton';
-import { useVideoMetadata } from 'src/features/videos/VideoApi';
+import EntityContextBox from 'src/features/entity_context/EntityContextBox';
 import VideoCard from 'src/features/videos/VideoCard';
-import { useCurrentPoll, useLoginState } from 'src/hooks';
-import { VideoSerializerWithCriteria } from 'src/services/openapi';
+import { useLoginState, useScrollToLocation } from 'src/hooks';
+import { Recommendation } from 'src/services/openapi';
 import { PersonalCriteriaScoresContextProvider } from 'src/hooks/usePersonalCriteriaScores';
 import PersonalScoreCheckbox from 'src/components/PersonalScoreCheckbox';
 import { CompareNowAction, AddToRateLaterList } from 'src/utils/action';
@@ -21,23 +19,25 @@ import linkifyStr from 'linkify-string';
 import { SelectedCriterionProvider } from 'src/hooks/useSelectedCriterion';
 import ContextualRecommendations from 'src/features/recommendation/ContextualRecommendations';
 
-export const VideoAnalysis = ({
-  video,
-}: {
-  video: VideoSerializerWithCriteria;
-}) => {
+import VideoAnalysisActionBar from './VideoAnalysisActionBar';
+
+export const VideoAnalysis = ({ video }: { video: Recommendation }) => {
   const { t } = useTranslation();
-  const { baseUrl } = useCurrentPoll();
   const [descriptionCollapsed, setDescriptionCollapsed] = React.useState(false);
 
-  const uid = `yt:${video.video_id}`;
   const actions = useLoginState() ? [CompareNowAction, AddToRateLaterList] : [];
 
-  const { criteria_scores: criteriaScores } = video;
-  const shouldDisplayCharts = criteriaScores && criteriaScores.length > 0;
+  useScrollToLocation();
+
+  const entity = video.entity;
+  const criteriaScores = video.collective_rating?.criteria_scores ?? [];
+  const shouldDisplayCharts = criteriaScores.length > 0;
 
   const linkifyOpts = { defaultProtocol: 'https', target: '_blank' };
-  const linkifiedDescription = linkifyStr(video.description || '', linkifyOpts);
+  const linkifiedDescription = linkifyStr(
+    entity.metadata.description || '',
+    linkifyOpts
+  );
 
   return (
     <Box
@@ -49,32 +49,29 @@ export const VideoAnalysis = ({
       justifyContent="space-between"
     >
       <Box flex={2} minWidth={{ xs: '100%', md: null }}>
-        {/* Top level section, containing links and maybe more in the future. */}
-        <Box mb={2} display="flex" justifyContent="flex-end" gap={2}>
-          <ShareMenuButton />
-          <Button
-            color="secondary"
-            variant="contained"
-            endIcon={<Compare />}
-            component={RouterLink}
-            to={`${baseUrl}/comparison?uidA=${uid}`}
-          >
-            {t('entityAnalysisPage.generic.compare')}
-          </Button>
-        </Box>
-
         {/* Entity section, with its player, title, scores and actions. */}
         <Grid container spacing={2} justifyContent="center">
           <Grid item xs={12} sx={{ aspectRatio: '16 / 9' }}>
             <VideoPlayer
-              videoId={video.video_id}
-              duration={video.duration}
+              videoId={entity.metadata.video_id}
+              duration={entity.metadata.duration}
               controls
             />
           </Grid>
           <Grid item xs={12}>
+            <VideoAnalysisActionBar video={video} />
+          </Grid>
+          <Grid item xs={12}>
             <VideoCard video={video} actions={actions} showPlayer={false} />
           </Grid>
+          {video.entity_contexts.length > 0 && (
+            <Grid item xs={12}>
+              <EntityContextBox
+                uid={video.entity.uid}
+                contexts={video.entity_contexts}
+              />
+            </Grid>
+          )}
           <Grid item xs={12}>
             <CollapseButton
               expanded={descriptionCollapsed}
@@ -85,7 +82,7 @@ export const VideoAnalysis = ({
               {t('entityAnalysisPage.video.description')}
             </CollapseButton>
             <Collapse in={descriptionCollapsed} timeout="auto" unmountOnExit>
-              <Typography paragraph>
+              <Typography paragraph component="div" mt={2}>
                 <Box
                   style={
                     descriptionCollapsed
@@ -103,53 +100,53 @@ export const VideoAnalysis = ({
           {/* Data visualization. */}
           {shouldDisplayCharts && (
             <SelectedCriterionProvider>
-              <Grid item xs={12} sm={12} md={6}>
-                <Paper>
-                  <Box
-                    p={1}
-                    bgcolor="rgb(238, 238, 238)"
-                    display="flex"
-                    justifyContent="center"
-                  >
-                    <Typography variant="h5">
-                      {t('entityAnalysisPage.chart.criteriaScores.title')}
-                    </Typography>
-                  </Box>
-                  <PersonalCriteriaScoresContextProvider uid={uid}>
+              <PersonalCriteriaScoresContextProvider uid={entity.uid}>
+                <Grid item xs={12} sm={12} md={6}>
+                  <Paper>
+                    <Box
+                      p={1}
+                      bgcolor="rgb(238, 238, 238)"
+                      display="flex"
+                      justifyContent="center"
+                    >
+                      <Typography variant="h5">
+                        {t('entityAnalysisPage.chart.criteriaScores.title')}
+                      </Typography>
+                    </Box>
                     <Box px={2} pt={1}>
                       <PersonalScoreCheckbox />
                     </Box>
                     <Box p={1}>
-                      <CriteriaBarChart video={video} />
+                      <CriteriaBarChart reco={video} />
                     </Box>
-                  </PersonalCriteriaScoresContextProvider>
-                </Paper>
-              </Grid>
-              <Grid item xs={12} sm={12} md={6}>
-                <Paper>
-                  <Box
-                    p={1}
-                    bgcolor="rgb(238, 238, 238)"
-                    display="flex"
-                    justifyContent="center"
-                  >
-                    <Typography variant="h5">
-                      {t('criteriaScoresDistribution.title')}
-                    </Typography>
-                  </Box>
-                  <Box p={1}>
-                    <CriteriaScoresDistribution uid={uid} />
-                  </Box>
-                </Paper>
-              </Grid>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} sm={12} md={6}>
+                  <Paper sx={{ height: '100%' }}>
+                    <Box
+                      p={1}
+                      bgcolor="rgb(238, 238, 238)"
+                      display="flex"
+                      justifyContent="center"
+                    >
+                      <Typography variant="h5">
+                        {t('criteriaScoresDistribution.title')}
+                      </Typography>
+                    </Box>
+                    <Box p={1}>
+                      <CriteriaScoresDistribution reco={video} />
+                    </Box>
+                  </Paper>
+                </Grid>
+              </PersonalCriteriaScoresContextProvider>
             </SelectedCriterionProvider>
           )}
         </Grid>
       </Box>
       <Box flex={1}>
         <ContextualRecommendations
-          contextUid={uid}
-          uploader={video.uploader || undefined}
+          contextUid={entity.uid}
+          uploader={entity.metadata.uploader || undefined}
         />
       </Box>
     </Box>
@@ -158,9 +155,7 @@ export const VideoAnalysis = ({
 
 const VideoAnalysisPage = () => {
   const { video_id } = useParams<{ video_id: string }>();
-  const video = useVideoMetadata(video_id);
-
-  return <VideoAnalysis video={video} />;
+  return <Redirect to={`/entities/yt:${video_id}`} />;
 };
 
 export default VideoAnalysisPage;

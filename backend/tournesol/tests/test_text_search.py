@@ -1,3 +1,6 @@
+from urllib.parse import urlencode
+
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -84,8 +87,6 @@ class TextSearchTestCase(TestCase):
         if not rated_criteria:
             rated_criteria = poll.criterias_list
 
-        nb_contributors = 0 if unsafe else 10
-
         if poll.entity_type == TYPE_VIDEO:
             entity = VideoFactory(
                 metadata__name=field1,
@@ -93,8 +94,8 @@ class TextSearchTestCase(TestCase):
                 metadata__tags=field3,
                 metadata__description=field4,
                 metadata__language=language,
-                tournesol_score=10.0,
-                rating_n_contributors=nb_contributors,
+                tournesol_score=30.0,
+                make_safe_for_poll=None if unsafe else poll,
             )
         elif poll.entity_type == TYPE_CANDIDATE:
             metadata = {
@@ -106,8 +107,8 @@ class TextSearchTestCase(TestCase):
             entity = EntityFactory(
                 type=TYPE_CANDIDATE,
                 metadata=metadata,
-                tournesol_score=10.0,
-                rating_n_contributors=nb_contributors,
+                tournesol_score=30.0,
+                make_safe_for_poll=None if unsafe else poll,
             )
         else:
             raise Exception("Unknown entity type")
@@ -247,7 +248,8 @@ class TextSearchTestCase(TestCase):
         self.assertEqual(response.data["count"], self.setup_results_count)
 
         self._create_rated_entity(field1="cake")
-
+        
+        cache.clear()
         response = self.client.get(
             self._make_url(query),
             format="json"
@@ -274,7 +276,8 @@ class TextSearchTestCase(TestCase):
         self.assertEqual(response.data["count"], 0)
 
         self._create_rated_entity(field1="oignon", language="fr")
-
+        
+        cache.clear()
         response = self.client.get(
             self._make_url(query, "fr"),
             format="json"
@@ -411,9 +414,10 @@ class TextSearchTestCase(TestCase):
         self.assertEqual(len(response.data["results"]), response.data["count"])
 
         sorted_scores = sorted(scores, reverse=True)
+        results = response.data["results"]
         for index, score in enumerate(sorted_scores):
             entity = entities[scores.index(score)]
-            self.assertEqual(response.data["results"][index]["uid"], entity.uid)
+            self.assertEqual(results[index]["entity"]["uid"], entity.uid)
 
     def test_public_contributor_recommendations_sorting_depends_on_total_score(self):
         """
@@ -439,9 +443,10 @@ class TextSearchTestCase(TestCase):
         self.assertEqual(len(response.data["results"]), response.data["count"])
 
         sorted_scores = sorted(scores, reverse=True)
+        results = response.data["results"]
         for index, score in enumerate(sorted_scores):
             entity = entities[scores.index(score)]
-            self.assertEqual(response.data["results"][index]["uid"], entity.uid)
+            self.assertEqual(results[index]["entity"]["uid"], entity.uid)
 
     def test_private_contributor_recommendations_sorting_depends_on_total_score(self):
         """
@@ -468,9 +473,10 @@ class TextSearchTestCase(TestCase):
         self.assertEqual(len(response.data["results"]), response.data["count"])
 
         sorted_scores = sorted(scores, reverse=True)
+        results = response.data["results"]
         for index, score in enumerate(sorted_scores):
             entity = entities[scores.index(score)]
-            self.assertEqual(response.data["results"][index]["uid"], entity.uid)
+            self.assertEqual(results[index]["entity"]["uid"], entity.uid)
 
     def test_videos_fields_weights(self):
         """
@@ -500,8 +506,8 @@ class TextSearchTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
-        self.assertEqual(response.data["results"][0]["uid"], self.setup_entity.uid)
-        self.assertEqual(response.data["results"][1]["uid"], other_entity.uid)
+        self.assertEqual(response.data["results"][0]["entity"]["uid"], self.setup_entity.uid)
+        self.assertEqual(response.data["results"][1]["entity"]["uid"], other_entity.uid)
 
     def test_query_weights(self):
         """
@@ -539,8 +545,8 @@ class TextSearchTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
-        self.assertEqual(response.data["results"][0]["uid"], entity_2.uid)
-        self.assertEqual(response.data["results"][1]["uid"], entity_1.uid)
+        self.assertEqual(response.data["results"][0]["entity"]["uid"], entity_2.uid)
+        self.assertEqual(response.data["results"][1]["entity"]["uid"], entity_1.uid)
 
         response = self.client.get(
             self._make_url(query) + f"&weights[{criteria_1}]=10&weights[{criteria_2}]=50",
@@ -549,8 +555,8 @@ class TextSearchTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
-        self.assertEqual(response.data["results"][0]["uid"], entity_1.uid)
-        self.assertEqual(response.data["results"][1]["uid"], entity_2.uid)
+        self.assertEqual(response.data["results"][0]["entity"]["uid"], entity_1.uid)
+        self.assertEqual(response.data["results"][1]["entity"]["uid"], entity_2.uid)
 
     def test_multiple_matches(self):
         """
@@ -577,8 +583,8 @@ class TextSearchTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
-        self.assertEqual(response.data["results"][0]["uid"], relevant_entity.uid)
-        self.assertEqual(response.data["results"][1]["uid"], less_relevant_entity.uid)
+        self.assertEqual(response.data["results"][0]["entity"]["uid"], relevant_entity.uid)
+        self.assertEqual(response.data["results"][1]["entity"]["uid"], less_relevant_entity.uid)
 
     def test_public_contributor_recommendations_multiple_matches(self):
         """
@@ -606,8 +612,8 @@ class TextSearchTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
-        self.assertEqual(response.data["results"][0]["uid"], relevant_entity.uid)
-        self.assertEqual(response.data["results"][1]["uid"], less_relevant_entity.uid)
+        self.assertEqual(response.data["results"][0]["entity"]["uid"], relevant_entity.uid)
+        self.assertEqual(response.data["results"][1]["entity"]["uid"], less_relevant_entity.uid)
 
     def test_private_contributor_recommendations_multiple_matches(self):
         """
@@ -636,8 +642,8 @@ class TextSearchTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
-        self.assertEqual(response.data["results"][0]["uid"], relevant_entity.uid)
-        self.assertEqual(response.data["results"][1]["uid"], less_relevant_entity.uid)
+        self.assertEqual(response.data["results"][0]["entity"]["uid"], relevant_entity.uid)
+        self.assertEqual(response.data["results"][1]["entity"]["uid"], less_relevant_entity.uid)
 
     def test_multiple_words(self):
         """
@@ -663,7 +669,7 @@ class TextSearchTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
-        self.assertEqual(response.data["results"][0]["uid"], relevant_entity.uid)
+        self.assertEqual(response.data["results"][0]["entity"]["uid"], relevant_entity.uid)
 
     def test_case_insensitive(self):
 
@@ -730,3 +736,13 @@ class TextSearchTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], self.setup_results_count + 1)
+
+    def test_search_with_total_criteria_weights_zero(self):
+        criteria_weights_dict = {
+            f"weights[{c}]": 0
+            for c in self.poll.criterias_list
+        }
+        url = f"{self.url_with_params}&{urlencode(criteria_weights_dict)}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], self.setup_results_count)

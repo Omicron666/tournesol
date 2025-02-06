@@ -7,9 +7,12 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from core.tests.factories.user import UserFactory
+from core.utils.time import time_ago, time_ahead
 from tournesol.models import Comparison, ContributorRating, Poll
+from tournesol.models.entity_context import EntityContext, EntityContextLocale
 from tournesol.tests.factories.comparison import ComparisonFactory
 from tournesol.tests.factories.entity import VideoFactory
+from tournesol.tests.factories.entity_poll_rating import EntityPollRatingFactory
 from tournesol.tests.factories.poll import PollFactory
 from tournesol.tests.factories.ratings import (
     ContributorRatingCriteriaScoreFactory,
@@ -33,16 +36,16 @@ class RatingApi(TestCase):
         self.user1 = UserFactory()
         self.user2 = UserFactory()
 
-        self.video1 = VideoFactory()
-        self.video2 = VideoFactory()
-        self.video3 = VideoFactory()
+        self.video1 = VideoFactory(tournesol_score=6)
+        self.video2 = VideoFactory(tournesol_score=1)
+        self.video3 = VideoFactory(tournesol_score=-10)
 
         ComparisonFactory(
             user=self.user1,
             entity_1=self.video1,
             entity_2=self.video2,
         )
-        ContributorRatingFactory(user=self.user2, entity=self.video2, is_public=True)
+        self.rating_video2 = ContributorRatingFactory(user=self.user2, entity=self.video2, is_public=True)
         self.comparison_user2 = ComparisonFactory(
             user=self.user2,
             entity_1=self.video1,
@@ -100,6 +103,7 @@ class RatingApi(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["entity_contexts"], [])
 
         rating = ContributorRating.objects.select_related("poll", "user", "entity").get(
             poll=self.poll_videos,
@@ -144,6 +148,13 @@ class RatingApi(TestCase):
         """
         An authenticated user can create a public rating.
         """
+        self.video3.all_poll_ratings.update(
+            tournesol_score=50,
+            n_contributors=20,
+            n_comparisons=30,
+            sum_trust_scores=10,
+        )
+
         self.client.force_authenticate(user=self.user1)
         response = self.client.post(
             self.ratings_base_url,
@@ -152,8 +163,21 @@ class RatingApi(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
         self.assertEqual(response.data["entity"]["uid"], self.video3.uid)
-        self.assertEqual(response.data["is_public"], True)
-        self.assertEqual(response.data["n_comparisons"], 0)
+        self.assertEqual(response.data["individual_rating"], {
+            "n_comparisons": 0,
+            "is_public": True,
+            "criteria_scores": [],
+            "last_compared_at": None,
+        })
+        self.assertEqual(response.data["collective_rating"], {
+            "tournesol_score": 50,
+            "n_contributors": 20,
+            "n_comparisons": 30,
+            "unsafe": {
+                "status": False,
+                "reasons": [],
+            }
+        })
 
     def test_authenticated_cant_create_twice(self):
         """
@@ -216,9 +240,10 @@ class RatingApi(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["entity"]["uid"], video.uid)
-        self.assertEqual(response.data["is_public"], False)
+        self.assertEqual(response.data["entity_contexts"], [])
+        self.assertEqual(response.data["individual_rating"]["is_public"], False)
         self.assertEqual(
-            response.data["criteria_scores"],
+            response.data["individual_rating"]["criteria_scores"],
             [
                 {
                     "criteria": "test-criteria",
@@ -227,7 +252,7 @@ class RatingApi(TestCase):
                 }
             ],
         )
-        self.assertEqual(response.data["n_comparisons"], 0)
+        self.assertEqual(response.data["individual_rating"]["n_comparisons"], 0)
 
     def test_anonymous_cant_list(self):
         """
@@ -244,13 +269,63 @@ class RatingApi(TestCase):
         An authenticated user can list its ratings related to a poll.
         """
         self.client.force_authenticate(user=self.user1)
+
         response = self.client.get(self.ratings_base_url, format="json")
+        rating = response.data["results"][0]
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
-        rating = response.data["results"][0]
         self.assertEqual(rating["entity"]["uid"], self.video2.uid)
-        self.assertEqual(rating["is_public"], False)
-        self.assertEqual(rating["n_comparisons"], 1)
+        self.assertEqual(rating["entity_contexts"], [])
+        self.assertEqual(
+            rating["individual_rating"],
+            {
+                "n_comparisons": 1,
+                "is_public": False,
+                "criteria_scores": [],
+                "last_compared_at": (
+                    self.user1.comparisons.last().datetime_lastedit.isoformat().replace("+00:00", "Z")
+                ),
+            }
+        )
+
+    def test_authenticated_can_list_with_contexts(self):
+        """
+        The list of ratings should include the contexts of each entity.
+        """
+        self.client.force_authenticate(user=self.user1)
+
+        entity_context = EntityContext.objects.create(
+            name="context_safe",
+            origin=EntityContext.ASSOCIATION,
+            predicate={"video_id": self.video1.metadata["video_id"]},
+            unsafe=False,
+            enabled=True,
+            poll=self.poll_videos,
+        )
+
+        entity_context_locale = EntityContextLocale.objects.create(
+            context=entity_context,
+            language="en",
+            text="Hello context",
+        )
+
+        response = self.client.get(self.ratings_base_url, format="json")
+        rating1 = response.data["results"][1]
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(rating1["entity_contexts"]), 1)
+        self.assertDictEqual(
+            rating1["entity_contexts"][0],
+            {
+                "origin": "ASSOCIATION",
+                "unsafe": False,
+                "text": entity_context_locale.text,
+                "created_at": entity_context.created_at.strftime(
+                    "%Y-%m-%dT%H:%M:%S.%fZ"
+                ),
+            }
+        )
 
     def test_authenticated_can_list_ordered_by_n_comparisons(self):
         """
@@ -292,14 +367,16 @@ class RatingApi(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            [r["n_comparisons"] for r in response.data["results"]], [1, 2, 2, 3]
+            [r["individual_rating"]["n_comparisons"] for r in response.data["results"]],
+            [1, 2, 2, 3]
         )
 
         # The most compared first.
         response = self.client.get(self.ratings_base_url + "?order_by=-n_comparisons")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            [r["n_comparisons"] for r in response.data["results"]], [3, 2, 2, 1]
+            [r["individual_rating"]["n_comparisons"] for r in response.data["results"]],
+            [3, 2, 2, 1]
         )
 
     def test_authenticated_can_list_ordered_by_last_compared_at(self):
@@ -308,10 +385,10 @@ class RatingApi(TestCase):
         last comparison date.
         """
 
-        video_old1 = VideoFactory()
-        video_old2 = VideoFactory()
-        video_recent1 = VideoFactory()
-        video_recent2 = VideoFactory()
+        video_old1 = VideoFactory(make_safe_for_poll=False)
+        video_old2 = VideoFactory(make_safe_for_poll=False)
+        video_recent1 = VideoFactory(make_safe_for_poll=False)
+        video_recent2 = VideoFactory(make_safe_for_poll=False)
 
         ContributorRatingFactory(user=self.user2, entity=video_old1, is_public=True)
         ContributorRatingFactory(user=self.user2, entity=video_old2, is_public=True)
@@ -330,13 +407,9 @@ class RatingApi(TestCase):
             entity_2=video_recent2,
         )
 
-        ten_days_ago = self.comparison_user2.datetime_lastedit - timedelta(days=10)
-        ten_days_ahead = self.comparison_user2.datetime_lastedit + timedelta(days=10)
         # update() allows to bypass the auto_now=True of the `datetime_lastedit` field.
-        Comparison.objects.filter(pk=comp_old.pk).update(datetime_lastedit=ten_days_ago)
-        Comparison.objects.filter(pk=comp_recent.pk).update(
-            datetime_lastedit=ten_days_ahead
-        )
+        Comparison.objects.filter(pk=comp_old.pk).update(datetime_lastedit=time_ago(days=10))
+        Comparison.objects.filter(pk=comp_recent.pk).update(datetime_lastedit=time_ahead(days=10))
 
         self.client.force_authenticate(user=self.user2)
 
@@ -347,7 +420,7 @@ class RatingApi(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         sorted_array = sorted(
-            response.data["results"], key=lambda x: x["last_compared_at"]
+            response.data["results"], key=lambda x: x["individual_rating"]["last_compared_at"]
         )
         self.assertEqual(
             response.data["results"], sorted_array, response.data["results"]
@@ -358,7 +431,8 @@ class RatingApi(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         sorted_array = sorted(
-            response.data["results"], key=lambda x: x["last_compared_at"], reverse=True
+            response.data["results"], key=lambda x: x["individual_rating"]["last_compared_at"],
+            reverse=True
         )
         self.assertEqual(response.data["results"], sorted_array)
 
@@ -394,6 +468,88 @@ class RatingApi(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(results[0]["entity"]["uid"], self.video2.uid)
         self.assertEqual(results[1]["entity"]["uid"], self.video1.uid)
+
+    def test_authenticated_can_list_videos_by_collective_score(self):
+        """
+        An authenticated user can list his/her ratings related to the `videos`
+        poll by the entities' collective score.
+        """
+        self.client.force_authenticate(user=self.user1)
+
+        response = self.client.get(
+            self.ratings_base_url + "?order_by=collective_score", format="json"
+        )
+        results = response.data["results"]
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(results[0]["entity"]["uid"], self.video2.uid)
+        self.assertEqual(results[1]["entity"]["uid"], self.video1.uid)
+
+        response = self.client.get(
+            self.ratings_base_url + "?order_by=-collective_score", format="json"
+        )
+        results = response.data["results"]
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(results[0]["entity"]["uid"], self.video1.uid)
+        self.assertEqual(results[1]["entity"]["uid"], self.video2.uid)
+
+    def test_authenticated_can_list_videos_by_individual_score(self):
+        """
+        An authenticated user can list his/her ratings related to the `videos`
+        poll based on their individual score.
+        """
+
+        rating_video1 = ContributorRating.objects.get(
+            poll=self.poll_videos, user=self.user1, entity=self.video1
+        )
+        ContributorRatingCriteriaScoreFactory(
+            contributor_rating=rating_video1,
+            criteria=self.poll_videos.main_criteria,
+            score=10
+        )
+
+        rating_video2 = ContributorRating.objects.get(
+            poll=self.poll_videos, user=self.user1, entity=self.video2
+        )
+        ContributorRatingCriteriaScoreFactory(
+            contributor_rating=rating_video2,
+            criteria=self.poll_videos.main_criteria,
+            score=20
+        )
+
+        ComparisonFactory(
+            user=self.user1,
+            entity_1=self.video1,
+            entity_2=self.video3,
+        )
+        rating_video3 = ContributorRating.objects.get(
+            poll=self.poll_videos, user=self.user1, entity=self.video3
+        )
+        ContributorRatingCriteriaScoreFactory(
+            contributor_rating=rating_video3,
+            criteria=self.poll_videos.main_criteria,
+            score=30
+        )
+
+        self.client.force_authenticate(user=self.user1)
+
+        response = self.client.get(
+            self.ratings_base_url + "?order_by=individual_score", format="json"
+        )
+        results = response.data["results"]
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(results[0]["entity"]["uid"], self.video1.uid)
+        self.assertEqual(results[1]["entity"]["uid"], self.video2.uid)
+        self.assertEqual(results[2]["entity"]["uid"], self.video3.uid)
+
+        response = self.client.get(
+            self.ratings_base_url + "?order_by=-individual_score", format="json"
+        )
+        results = response.data["results"]
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(results[0]["entity"]["uid"], self.video3.uid)
+        self.assertEqual(results[1]["entity"]["uid"], self.video2.uid)
+        self.assertEqual(results[2]["entity"]["uid"], self.video1.uid)
 
     def test_authenticated_can_list_videos_by_publication_date(self):
         """
@@ -512,9 +668,10 @@ class RatingApi(TestCase):
         )
         response_data = response.json()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response_data["is_public"], True)
+        self.assertEqual(response_data["entity_contexts"], [])
+        self.assertEqual(response_data["individual_rating"]["is_public"], True)
         self.assertEqual(
-            response_data["criteria_scores"],
+            response_data["individual_rating"]["criteria_scores"],
             [
                 {
                     "criteria": "test-criteria",

@@ -3,12 +3,17 @@ Administration interface of `core` app.
 """
 
 from typing import List, Tuple
+from urllib.parse import urlencode
 
 from django.contrib import admin
 from django.contrib.admin.utils import flatten_fieldsets
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-from django.db.models import Count, Func, OuterRef, Subquery
+from django.db.models import Count
+from django.db.models.expressions import RawSQL
 from django.db.models.query import QuerySet
+from django.urls import reverse
+from django.utils.html import format_html
+from django.utils.translation import gettext_lazy as _
 
 from .models import Degree, EmailDomain, Expertise, ExpertiseKeyword, User, VerifiableEmail
 
@@ -20,6 +25,7 @@ class DegreeAdmin(admin.ModelAdmin):
 
 class IsTrustedFilter(admin.SimpleListFilter):
     """Filter for displaying only trusted or untrusted users"""
+
     title = "is trusted"
     parameter_name = "is_trusted"
 
@@ -48,6 +54,7 @@ class IsTrustedFilter(admin.SimpleListFilter):
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
     """Interface to manage general data about users."""
+
     ordering = ["-date_joined"]
     list_filter = DjangoUserAdmin.list_filter + (IsTrustedFilter,)
     list_display = (
@@ -56,7 +63,7 @@ class UserAdmin(DjangoUserAdmin):
         "is_active",
         "is_trusted",
         "get_n_comparisons",
-        "trust_score",
+        "get_trust_score",
         "date_joined",
     )
     add_fieldsets = (
@@ -67,6 +74,11 @@ class UserAdmin(DjangoUserAdmin):
                 "fields": ("username", "email", "password1", "password2"),
             },
         ),
+    )
+
+    fieldsets = DjangoUserAdmin.fieldsets + (
+        (_("Tournesol - trust"), {"fields": ("trust_score",)}),
+        (_("Tournesol - preferences"), {"fields": ("settings",)}),
     )
 
     @staticmethod
@@ -108,6 +120,12 @@ class UserAdmin(DjangoUserAdmin):
     def is_trusted(self, instance):
         return instance.is_trusted
 
+    @admin.display(ordering="-trust_score", description="Trust score")
+    def get_trust_score(self, instance):
+        if instance.trust_score is None:
+            return ""
+        return f"{instance.trust_score:.1%}"
+
 
 @admin.register(Expertise)
 class ExpertiseAdmin(admin.ModelAdmin):
@@ -132,6 +150,7 @@ def make_rejected(modeladmin, request, queryset):  # pylint: disable=unused-argu
 @admin.register(EmailDomain)
 class EmailDomainAdmin(admin.ModelAdmin):
     """Interface to manage domains and their trust status"""
+
     list_display = (
         "domain",
         "status",
@@ -146,17 +165,32 @@ class EmailDomainAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qst = super().get_queryset(request)
         qst = qst.annotate(
-            user_number=Subquery(
-                User.objects.filter(email__iendswith=OuterRef("domain"))
-                .annotate(count=Func("id", function="Count"))
-                .values("count")
+            user_number=RawSQL(
+                """
+                WITH count_by_domain AS MATERIALIZED (
+                    SELECT
+                        regexp_replace("email", '(.*)(@.*$)', '\\2') AS user_domain,
+                        count(*) AS user_count
+                    FROM core_user
+                    GROUP BY user_domain
+                )
+                SELECT COALESCE(
+                    (SELECT user_count FROM count_by_domain WHERE user_domain = domain),
+                    0
+                )
+                """,
+                (),
             )
         )
         return qst
 
     @admin.display(ordering="-user_number", description="# users")
     def user_number(self, obj):
-        return obj.user_number
+        return format_html(
+            '<a href="{}">{} user(s)</a>',
+            f'{reverse("admin:core_user_changelist")}?{urlencode({"q": obj.domain})}',
+            obj.user_number,
+        )
 
 
 @admin.register(VerifiableEmail)

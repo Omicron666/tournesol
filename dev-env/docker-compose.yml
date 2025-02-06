@@ -3,7 +3,7 @@ version: "3.3"
 services:
   db:
     container_name: tournesol-dev-db
-    image: postgres:13-bullseye
+    image: ${DB_IMAGE:-ghcr.io/tournesol-app/postgres-dev-env:2023-10-27}
     user: ${DB_UID}:${DB_GID}
     volumes:
       - ./db-data:/var/lib/postgresql/data
@@ -14,7 +14,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
+      test: psql -h localhost -U $$POSTGRES_USER -d $$POSTGRES_DB -c "select 1"
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,15 +28,17 @@ services:
     container_name: tournesol-dev-api
     environment:
       - SETTINGS_FILE=/backend/dev-env/settings-tournesol.yaml
-    entrypoint: ["/bin/bash", "-c"]
+    entrypoint: ["/bin/bash", "-eux", "-c"]
     command:
       - |
-        python manage.py migrate
+        pip install -r tests/requirements.txt -r requirements.txt
         python manage.py createcachetable
+        python manage.py migrate
         django-admin compilemessages
         python manage.py runserver 0.0.0.0:8000
     volumes:
       - ../backend:/backend
+      - ../solidago:/solidago
     ports:
       - "127.0.0.1:8000:8000"
     networks:
@@ -46,16 +48,20 @@ services:
         condition: service_healthy
 
   front:
-    image: node:14-bullseye-slim
+    image: node:18.20-bullseye-slim
     container_name: tournesol-dev-front
     working_dir: /frontend
     entrypoint: bash -c
     environment:
       - DISABLE_ESLINT_PLUGIN=${CI:-false}  # Disable eslint plugin during e2e tests (where CI=true)
+      - GENERATE_SOURCEMAP=false  # Faster build and require less memory when building .js in CI. Ignored when using the default webpack dev server.
+      - START_SCRIPT=${FRONTEND_START_SCRIPT:-start}  # Set "FRONTEND_START_SCRIPT=start:e2e" to serve static bundles instead of running webpack dev server.
     command:
-      - yarn install --frozen-lockfile && ./scripts/generate-services-from-openapi.sh && yarn start
+      - yarn install --frozen-lockfile && ./scripts/generate-services-from-openapi.sh && yarn run $$START_SCRIPT
     volumes:
       - ../frontend:/frontend
+      - type: volume  # Use non-mounted volume for better performance with Docker Desktop (esp. on MacOS and Windows)
+        target: /frontend/node_modules
     ports:
       - "127.0.0.1:3000:3000"
     networks:

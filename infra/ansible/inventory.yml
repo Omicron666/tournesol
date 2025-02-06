@@ -8,6 +8,7 @@ all:
           machine_name: tournesol
           domain_name: tournesol-vm
           api_domain_name: tournesol-api
+          website_analytics_domain_name: tournesol-webanalytics
           api_scheme: http
 
           buster_mirror: http://debian.ethz.ch/debian/
@@ -23,40 +24,50 @@ all:
           django_email_backend: console
           django_enable_api_wikidata_migrations: true
           django_api_throttle_email: "5/min"
-          populate_django_db_from_public_dataset: true
           chrome_extension_id: iahbndmibajbfljmlaaaikgognekamno
 
-          loki_version: "v2.2.1"
+          loki_version: "v2.9.2"
+          grafana:
+            dashboard_alerting_uid: kemHo2Mnz
+            datasource_loki_uid: j1so19VIz
+            datasource_prometheus_uid: tRVp1rVIk
+
           nvm_version: "v0.38.0"
-          npm_lts_version: fermium
+          npm_lts_version: "hydrogen"  # codename for Node.js 18 (LTS)
           frontend_scheme: http
           frontend_csp_connect_src: https://noembed.com
+          frontend_csp_frame_ancestors: "https://www.youtube.com moz-extension: chrome-extension:"
           frontend_csp_frame_src: https://www.youtube.com
           frontend_csp_image_src: "https://i.ytimg.com https://www.paypal.com https://www.paypalobjects.com https://*.wikimedia.org"
           frontend_csp_script_src: "https://www.youtube.com/iframe_api https://www.youtube.com/s/player/"
           frontend_presidentielle_2022_enabled: true
 
-          mediawiki_domain_name: tournesol-wiki
-          mediawiki_scheme: http
-          mediawiki_database_name: mediawiki
-          mediawiki_database_user: mediawiki
-
           monitored_urls:
             - https://staging.tournesol.app/
             - https://api.staging.tournesol.app/admin
-            - https://wiki.staging.tournesol.app/
+            - https://webanalytics.staging.tournesol.app/login
 
           grafana_domain_name: tournesol-grafana
           grafana_scheme: http
+          plausible_hosting_tag: "2023.09.28"
 
+          # Daily clean-up of the back end's expired items.
           tournesol_api_cleartokens_schedule: "*-*-* 02:00:00" # daily at 2am
           tournesol_api_deleteinactiveusers_schedule: "*-*-* 02:20:00" # daily at 2:20am
+          tournesol_api_clearsessions_schedule: "*-*-* 02:40:00" # daily at 2:40am
 
-          ml_train_schedule: "*-*-* 0,6,12,18:20:00" # every 6 hours
+          # Watch account creations
+          tournesol_api_watch_account_creation_1h_schedule: "*-*-* *:01:00"
+          tournesol_api_watch_account_creation_24h_schedule: "*-*-* 00:01:10"
+          tournesol_api_watch_account_number_yesterday_schedule: "*-*-* 00:01:20"
 
-          mediawiki_backup_schedule: "*-*-* 0,6,12,18:10:00" # every 6 hours
+          # Registration reminder
+          tournesol_api_remindregistrations_schedule: "*-*-* 17:00:00 Europe/Zurich"
 
-          postgresql_backup_schedule: "*-*-* 0,6,12,18:00:00" # every 6 hours
+          ml_train_schedule: "*-*-* 00/3:20:00" # every 3 hours
+          tournesol_api_createdataset_schedule: "Mon 00:02" # weekly, before the new week
+
+          postgresql_backup_schedule: "*-*-* 1,7,13,19:00:00" # every 6 hours
 
         # Staging Vultr VM
         tournesol-staging:
@@ -64,6 +75,7 @@ all:
           machine_name: tournesol
           domain_name: staging.tournesol.app
           api_domain_name: "api.{{domain_name}}"
+          website_analytics_domain_name: "webanalytics.{{domain_name}}"
           api_scheme: https
 
           buster_mirror: http://debian.ethz.ch/debian/
@@ -79,14 +91,19 @@ all:
           django_email_backend: smtp
           django_enable_api_wikidata_migrations: true
           django_api_throttle_email: "5/min"
-          populate_django_db_from_public_dataset: false
           chrome_extension_id: iahbndmibajbfljmlaaaikgognekamno
 
-          loki_version: "v2.2.1"
+          loki_version: "v2.9.2"
+          grafana:
+            dashboard_alerting_uid: kemHo2Mnz
+            datasource_loki_uid: j1so19VIz
+            datasource_prometheus_uid: tRVp1rVIk
+
           nvm_version: "v0.38.0"
-          npm_lts_version: fermium
+          npm_lts_version: "hydrogen"  # codename for Node.js 18 (LTS)
           frontend_scheme: https
           frontend_csp_connect_src: https://noembed.com
+          frontend_csp_frame_ancestors: "https://www.youtube.com moz-extension: chrome-extension:"
           frontend_csp_frame_src: https://www.youtube.com
           frontend_csp_image_src: "https://i.ytimg.com https://www.paypal.com https://www.paypalobjects.com https://*.wikimedia.org"
           frontend_csp_script_src: "https://www.youtube.com/iframe_api https://www.youtube.com/s/player/"
@@ -95,29 +112,38 @@ all:
           # Setting this triggers TLS configuration
           letsencrypt_email: tournesol.application@gmail.com
 
-          mediawiki_domain_name: "wiki.{{domain_name}}"
-          mediawiki_scheme: https
-          mediawiki_database_name: mediawiki
-          mediawiki_database_user: mediawiki
-
           monitored_urls:
             - https://tournesol.app/
             - https://api.tournesol.app/admin
-            - https://wiki.tournesol.app/
+            - https://webanalytics.tournesol.app/login
+
+          # ID of the Discord role that will be highlighted when a monitored
+          # URL is unreachable. (optional)
+          discord_role_id_urls_checks: 928020834885464086
 
           grafana_domain_name: "grafana.{{domain_name}}"
           grafana_scheme: https
+          plausible_hosting_tag: "2023.09.28"
 
+          # Daily clean-up of the back end's expired items.
           tournesol_api_cleartokens_schedule: "*-*-* 02:00:00" # daily at 2am
           tournesol_api_deleteinactiveusers_schedule: "*-*-* 02:20:00" # daily at 2:20am
+          tournesol_api_clearsessions_schedule: "*-*-* 02:40:00" # daily at 2:40am
 
-          ml_train_schedule: "*-*-* 0,6,12,18:20:00" # every 6 hours
+          # Watch account creations
+          tournesol_api_watch_account_creation_1h_schedule: "*-*-* *:01:00"
+          tournesol_api_watch_account_creation_24h_schedule: "*-*-* 00:01:10"
+          tournesol_api_watch_account_number_yesterday_schedule: "*-*-* 00:01:20"
 
-          mediawiki_backup_schedule: "*-*-* 0,6,12,18:10:00" # every 6 hours
+          # Registration reminder
+          tournesol_api_remindregistrations_schedule: "*-*-* 17:00:00 Europe/Zurich"
 
-          postgresql_backup_schedule: "*-*-* 0,6,12,18:00:00" # every 6 hours
+          ml_train_schedule: "*-*-* 00/3:20:00" # every 3 hours
+          tournesol_api_createdataset_schedule: "Mon 00:02" # weekly, before the new week
 
-          export_backups_schedule: "*-*-* 0,6,12,18:30:00" # every 6 hours
+          postgresql_backup_schedule: "*-*-* 1,7,13,19:00:00" # every 6 hours
+
+          export_backups_schedule: "*-*-* 1,7,13,19:30:00" # every 6 hours
           export_backups_bucket_name: tournesol-app-backups
           export_backups_path: staging
 
@@ -127,6 +153,7 @@ all:
           machine_name: tournesol
           domain_name: tournesol.app
           api_domain_name: "api.{{domain_name}}"
+          website_analytics_domain_name: "webanalytics.{{domain_name}}"
           api_scheme: https
 
           buster_mirror: http://debian.ethz.ch/debian/
@@ -142,14 +169,19 @@ all:
           django_email_backend: smtp
           django_enable_api_wikidata_migrations: true
           django_api_throttle_email: "12/min"
-          populate_django_db_from_public_dataset: false
           chrome_extension_id: nidimbejmadpggdgooppinedbggeacla
 
-          loki_version: "v2.2.1"
+          loki_version: "v2.9.2"
+          grafana:
+            dashboard_alerting_uid: kemHo2Mnz
+            datasource_loki_uid: dFiJRjVSz
+            datasource_prometheus_uid: EjLpRC4Sk
+
           nvm_version: "v0.38.0"
-          npm_lts_version: fermium
+          npm_lts_version: "hydrogen"  # codename for Node.js 18 (LTS)
           frontend_scheme: https
           frontend_csp_connect_src: https://noembed.com
+          frontend_csp_frame_ancestors: "https://www.youtube.com moz-extension: chrome-extension:"
           frontend_csp_frame_src: https://www.youtube.com
           frontend_csp_image_src: "https://i.ytimg.com https://www.paypal.com https://www.paypalobjects.com https://*.wikimedia.org"
           frontend_csp_script_src: "https://www.youtube.com/iframe_api https://www.youtube.com/s/player/"
@@ -158,47 +190,48 @@ all:
           # Setting this triggers TLS configuration
           letsencrypt_email: tournesol.application@gmail.com
 
-          mediawiki_domain_name: "wiki.{{domain_name}}"
-          mediawiki_scheme: https
-          mediawiki_database_name: mediawiki
-          mediawiki_database_user: mediawiki
-
           monitored_urls:
             - https://staging.tournesol.app/
             - https://api.staging.tournesol.app/admin
-            - https://wiki.staging.tournesol.app/
+            - https://webanalytics.staging.tournesol.app/login
+
+          # ID of the Discord role that will be highlighted when a monitored
+          # URL is unreachable. (optional)
+          discord_role_id_urls_checks: 928020834885464086
 
           grafana_domain_name: "grafana.{{domain_name}}"
           grafana_scheme: https
+          plausible_hosting_tag: "2023.09.28"
 
+          # Daily clean-up of the back end's expired items.
           tournesol_api_cleartokens_schedule: "*-*-* 02:00:00" # daily at 2am
           tournesol_api_deleteinactiveusers_schedule: "*-*-* 02:20:00" # daily at 2:20am
+          tournesol_api_clearsessions_schedule: "*-*-* 02:40:00" # daily at 2:40am
+
+          # Watch account creations
+          tournesol_api_watch_account_creation_1h_schedule: "*-*-* *:01:00"
+          tournesol_api_watch_account_creation_24h_schedule: "*-*-* 00:01:10"
+          tournesol_api_watch_account_number_yesterday_schedule: "*-*-* 00:01:20"
+
+          # Registration reminder
+          tournesol_api_remindregistrations_schedule: "*-*-* 17:00:00 Europe/Zurich"
 
           # twitterbot: the service script is responsible for running the bot in
           # different languages depending on the day of the week.
-          tournesol_twitterbot_schedule: "*-*-* 18:03:00 Europe/Zurich" # daily.
+          tournesol_twitterbot_schedule: "*-*-* 18:04:00 Europe/Zurich" # daily
+          tournesol_twitterbot_top_contributors_schedule: "*-*-1 15:04:00 Europe/Zurich" # monthly
 
-          ml_train_schedule: "*-*-* 0,6,12,18:20:00" # every 6 hours
+          tournesol_yt_playlists_schedule: "*-*-* 05:15:00" # daily
 
-          mediawiki_backup_schedule: "*-*-* 0,6,12,18:10:00" # every 6 hours
+          ml_train_schedule: "*-*-* 00/3:20:00" # every 3 hours
+          tournesol_api_createdataset_schedule: "Mon 00:02" # weekly, before the new week
 
-          postgresql_backup_schedule: "*-*-* 0,6,12,18:00:00" # every 6 hours
+          postgresql_backup_schedule: "*-*-* 1,7,13,19:00:00" # every 6 hours
 
-          export_backups_schedule: "*-*-* 0,6,12,18:30:00" # every 6 hours
+          export_backups_schedule: "*-*-* 1,7,13,19:30:00" # every 6 hours
           export_backups_bucket_name: tournesol-app-backups
           export_backups_path: prod
 
       vars:
         ansible_python_interpreter: /usr/bin/python3
         ansible_ssh_pipelining: true
-        mediawiki_extensions:
-          # These commits refer to the branch "REL1_36" on each repository, as observed on 2021-10-19.
-          - name: Math
-            url: https://github.com/wikimedia/mediawiki-extensions-Math/archive/93b1252386dcd8658a285571a76cea0c6852bb0e.zip
-            output_dir: mediawiki-extensions-Math-93b1252386dcd8658a285571a76cea0c6852bb0e
-          - name: PluggableAuth
-            url: https://github.com/wikimedia/mediawiki-extensions-PluggableAuth/archive/087cb4c82e57971c8e65e40ad40e83e971377ee9.zip
-            output_dir: mediawiki-extensions-PluggableAuth-087cb4c82e57971c8e65e40ad40e83e971377ee9
-          - name: OpenIDConnect
-            url: https://github.com/wikimedia/mediawiki-extensions-OpenIDConnect/archive/da7914745ae62816cb7c37578a4aa8a0894b8a87.zip
-            output_dir: mediawiki-extensions-OpenIDConnect-da7914745ae62816cb7c37578a4aa8a0894b8a87

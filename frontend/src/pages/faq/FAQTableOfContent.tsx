@@ -17,13 +17,25 @@ import { FAQEntry } from 'src/services/openapi';
  * Items are anchors allowing to jump directly to the question. The anchor
  * added to the URL is the `FAQEntry.name`.
  */
-const FAQTableOfContent = ({ entries }: { entries: Array<FAQEntry> }) => {
+const FAQTableOfContent = ({
+  entries,
+  onEntryClick,
+}: {
+  entries: Array<FAQEntry>;
+  onEntryClick: (name: string, scroll?: boolean) => void;
+}) => {
   const { t } = useTranslation();
 
   return (
     <Paper
       square
-      sx={{ color: '#fff', p: 2, pb: 2, mb: 2, backgroundColor: '#1282B2' }}
+      sx={{
+        color: '#fff',
+        p: 2,
+        pb: 2,
+        mb: 2,
+        backgroundColor: 'background.emphatic',
+      }}
     >
       <Typography variant="h6">{t('faqPage.tableOfContent')}</Typography>
       <List dense={true}>
@@ -31,14 +43,17 @@ const FAQTableOfContent = ({ entries }: { entries: Array<FAQEntry> }) => {
           <ListItemButton
             key={`toc_${entry.name}`}
             component="a"
-            href={`#${entry.name}`}
+            onClick={() => onEntryClick(entry.name, true)}
           >
             <ListItemText>{entry.question}</ListItemText>
           </ListItemButton>
         ))}
         {/* Always display an extra entry to explain how to ask more
             questions. */}
-        <ListItemButton component="a" href={`#no_answer_found`}>
+        <ListItemButton
+          component="a"
+          onClick={() => onEntryClick('no_answer_found', true)}
+        >
           <ListItemText>{t('faqPage.iDidFindTheAnswers')}</ListItemText>
         </ListItemButton>
       </List>

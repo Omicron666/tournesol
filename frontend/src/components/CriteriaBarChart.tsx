@@ -3,81 +3,31 @@ import React, {
   useLayoutEffect,
   useState,
   useMemo,
-  createContext,
-  useContext,
   useCallback,
 } from 'react';
-import {
-  VideoSerializerWithCriteria,
-  Recommendation,
-} from 'src/services/openapi';
+import { Recommendation } from 'src/services/openapi';
 import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
-import { displayScore, criteriaIcon, criterionColor } from 'src/utils/criteria';
+import { criteriaIcon, criterionColor } from 'src/utils/criteria';
 import useCriteriaChartData, {
   CriterionChartScores,
 } from 'src/hooks/useCriteriaChartData';
 import { useTranslation } from 'react-i18next';
-import { lighten } from 'src/utils/color';
 import { Tooltip } from '@mui/material';
 import useResizeObserver from '@react-hook/resize-observer';
 import useSelectedCriterion from 'src/hooks/useSelectedCriterion';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
-
+import useCriterionScoreData, {
+  useChartContext,
+  ChartContext,
+  ChartContextValue,
+} from 'src/hooks/useCriterionScoreData';
 const barMargin = 40; // The horizontal margin around the bar (must be enough for the icon and the score value)
 const criterionChartHeight = 40; // The height of a single criterion chart (circle + icon + bars)
 const scoreBarHeight = 10;
 const scoreBarsSpacing = 4;
 const scoreLabelSpacingWithBar = 4;
 const selectedCriterionBackgroundColor = 'rgb(238, 238, 238)';
-
-interface ChartContextValue {
-  data: CriterionChartScores[];
-  domain: number[];
-  chartWidth: number;
-  chartHeight: number;
-  personalScoresActivated: boolean;
-}
-const ChartContext = createContext<ChartContextValue>({
-  data: [],
-  domain: [0.0, 1.0],
-  chartWidth: 0,
-  chartHeight: 0,
-  personalScoresActivated: false,
-});
-const useChartContext = () => useContext(ChartContext);
-
-const useCriterionScoreData = ({
-  index,
-  personal,
-}: {
-  index: number;
-  personal: boolean;
-}) => {
-  const { data } = useChartContext();
-  const criterionScores = data[index];
-  const {
-    criterion,
-    score,
-    clippedScore,
-    personalScore,
-    clippedPersonalScore,
-  } = criterionScores;
-  const color = criterionColor(criterion);
-
-  if (personal)
-    return {
-      score: personalScore,
-      clippedScore: clippedPersonalScore,
-      color: lighten(color, 0.5),
-    };
-  else
-    return {
-      score,
-      clippedScore,
-      color,
-    };
-};
 
 const calculateScoreBarY = ({
   index,
@@ -184,7 +134,7 @@ const ScoreLabel = ({
       fill={color}
       style={{ fontSize: 14, fontWeight: 'bold' }}
     >
-      {displayScore(score)}
+      {score.toFixed(0)}
     </text>
   );
 };
@@ -472,13 +422,12 @@ const SizedBarChart = ({
 };
 
 interface Props {
-  video?: VideoSerializerWithCriteria;
-  entity?: Recommendation;
+  reco: Recommendation;
 }
 
-const CriteriaBarChart = ({ video, entity }: Props) => {
+const CriteriaBarChart = ({ reco }: Props) => {
   const { shouldDisplayChart, data, personalScoresActivated, domain } =
-    useCriteriaChartData({ video, entity });
+    useCriteriaChartData({ reco });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | undefined>(undefined);

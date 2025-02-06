@@ -5,15 +5,16 @@ import {
   fetchTournesolApi,
   getAccessToken,
   getRandomSubarray,
+  getUserProof,
+  getRecommendationsLanguagesAuthenticated,
+  getSingleSetting,
 } from './utils.js';
 
-const oversamplingRatioForRecentVideos = 3;
-const oversamplingRatioForOldVideos = 50;
-// Higher means videos recommended can come from further down the recommandation list
-// and returns videos that are more diverse on reload
+import { frontendHost } from './config.js';
 
-const recentVideoProportion = 0.75;
-const recentVideoProportionForAdditionalVideos = 0.5;
+const RECENT_VIDEOS_RATIO = 0.75;
+const RECENT_VIDEOS_EXTRA_RATIO = 0.5;
+const BUNDLE_OVERFETCH_FACTOR = 3;
 
 /**
  * Build the extension context menu.
@@ -30,10 +31,10 @@ const createContextMenu = function createContextMenu() {
     });
   });
 
-  chrome.contextMenus.onClicked.addListener(function (e) {
+  chrome.contextMenus.onClicked.addListener(function (e, tab) {
     var videoId = new URL(e.linkUrl).searchParams.get('v');
     if (!videoId) {
-      alertUseOnLinkToYoutube();
+      alertUseOnLinkToYoutube(tab);
     } else {
       addRateLater(videoId).then((response) => {
         if (!response.success) {
@@ -46,7 +47,8 @@ const createContextMenu = function createContextMenu() {
                 function (response) {
                   if (!response.success) {
                     alertOnCurrentTab(
-                      'Sorry, an error occured while opening the Tournesol login form.'
+                      'Sorry, an error occured while opening the Tournesol login form.',
+                      tab
                     );
                   }
                 }
@@ -60,119 +62,13 @@ const createContextMenu = function createContextMenu() {
 };
 createContextMenu();
 
-/**
- * Remove the X-FRAME-OPTIONS and FRAME-OPTIONS headers included in the
- * Tournesol application HTTP answers. It allows the extension to display
- * the application in an iframe without enabling all website to do the same.
- */
-chrome.webRequest.onHeadersReceived.addListener(
-  function (info) {
-    const headers = info.responseHeaders.filter(
-      (h) =>
-        !['x-frame-options', 'frame-options'].includes(h.name.toLowerCase())
-    );
-    return { responseHeaders: headers };
-  },
-  {
-    urls: ['https://tournesol.app/*'],
-    types: ['sub_frame'],
-  },
-  [
-    'blocking',
-    'responseHeaders',
-    // Modern Chrome needs 'extraHeaders' to see and change this header,
-    // so the following code evaluates to 'extraHeaders' only in modern Chrome.
-    chrome.webRequest.OnHeadersReceivedOptions.EXTRA_HEADERS,
-  ].filter(Boolean)
-);
-
 function getDateThreeWeeksAgo() {
   // format a string to properly display years months and day: 2011 -> 11, 5 -> 05, 12 -> 12
   const threeWeeksAgo = new Date(Date.now() - 3 * 7 * 24 * 3600000);
+  // we truncate minutes, seconds and ms from the date in order to benefit
+  // from caching at the API level.
+  threeWeeksAgo.setMinutes(0, 0, 0);
   return threeWeeksAgo.toISOString();
-}
-
-const availableRecommendationsLanguages = [
-  // See recommendationsLanguages in frontend/src/utils/constants.ts
-  'af',
-  'ar',
-  'bg',
-  'bn',
-  'ca',
-  'cs',
-  'cy',
-  'da',
-  'de',
-  'el',
-  'en',
-  'es',
-  'et',
-  'fa',
-  'fi',
-  'fr',
-  'gu',
-  'he',
-  'hi',
-  'hr',
-  'hu',
-  'id',
-  'it',
-  'ja',
-  'kn',
-  'ko',
-  'lt',
-  'lv',
-  'mk',
-  'ml',
-  'mr',
-  'ne',
-  'nl',
-  'no',
-  'pa',
-  'pl',
-  'pt',
-  'ro',
-  'ru',
-  'sk',
-  'sl',
-  'so',
-  'sq',
-  'sv',
-  'sw',
-  'ta',
-  'te',
-  'th',
-  'tl',
-  'tr',
-  'uk',
-  'ur',
-  'vi',
-];
-
-async function recommendationsLanguages() {
-  const storedRecommendationsLanguages = () =>
-    new Promise((resolve) =>
-      chrome.storage.local.get(
-        'recommendationsLanguages',
-        ({ recommendationsLanguages }) => resolve(recommendationsLanguages)
-      )
-    );
-
-  const uniq = (array) => Array.from(new Set(array));
-  const recommendationsLanguagesFromNavigator = () =>
-    uniq(
-      navigator.languages
-        .map((languageTag) => languageTag.split('-', 1)[0])
-        .filter((language) =>
-          availableRecommendationsLanguages.includes(language)
-        )
-    ).join(',');
-
-  return (
-    (await storedRecommendationsLanguages()) ||
-    recommendationsLanguagesFromNavigator() ||
-    'en'
-  );
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -197,7 +93,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       chrome.tabs.sendMessage(
         tabs[0].id,
-        { message: 'displayModal' },
+        {
+          message: 'displayModal',
+          modalOptions: request.modalOptions,
+        },
         function (response) {
           sendResponse(response);
         }
@@ -206,20 +105,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.message === 'openOptionsPage') {
+    chrome.runtime.openOptionsPage();
+    return true;
+  }
+
   if (request.message == 'addRateLater') {
     addRateLater(request.video_id).then(sendResponse);
     return true;
-  } else if (request.message == 'getVideoStatistics') {
+  }
+
+  if (request.message.startsWith('getProof:')) {
+    const keyword = request.message.split(':')[1];
+
+    if (keyword) {
+      getUserProof(keyword).then((response) => {
+        sendResponse(response);
+      });
+      return true;
+    }
+  }
+
+  if (request.message == 'getVideoStatistics') {
     // getVideoStatistics(request.video_id).then(sendResponse);
     return true;
-  } else if (request.message == 'getTournesolRecommendations') {
-    const poll_name = 'videos';
-    const api_url = `polls/${poll_name}/recommendations/`;
+  }
 
-    const request_recommendations = async (options) => {
+  if (request.message && request.message.startsWith('get:setting:')) {
+    let setting = request.message.split(':')[2];
+
+    if (!setting) {
+      sendResponse({ value: null });
+      return true;
+    }
+
+    getSingleSetting(setting, false).then((value) => {
+      sendResponse({ value: value });
+    });
+    return true;
+  } else if (
+    request.message == 'getTournesolRecommendations' ||
+    request.message == 'getTournesolSearchRecommendations'
+  ) {
+    const poll_name = 'videos';
+
+    const request_recommendations = async (api_path, options) => {
       const resp = await fetchTournesolApi(
-        `${api_url}${options ? '?' : ''}${options}`,
-        'GET'
+        `${api_path}${options ? '?' : ''}${options}`
       );
       if (resp && resp.ok) {
         const json = await resp.json();
@@ -228,112 +160,155 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return [];
     };
 
-    // Compute the number of videos to load in each category
-    const recentVideoToLoad = Math.round(
-      request.videosNumber *
-        oversamplingRatioForRecentVideos *
-        recentVideoProportion
-    );
-    const oldVideoToLoad = Math.round(
-      request.videosNumber *
-        oversamplingRatioForOldVideos *
-        (1 - recentVideoProportion)
-    );
-    const recentAdditionalVideoToLoad = Math.round(
-      request.additionalVideosNumber *
-        oversamplingRatioForRecentVideos *
-        recentVideoProportionForAdditionalVideos
-    );
-    const oldAdditionalVideoToLoad = Math.round(
-      request.additionalVideosNumber *
-        oversamplingRatioForOldVideos *
-        (1 - recentVideoProportionForAdditionalVideos)
-    );
+    if (request.message === 'getTournesolRecommendations') {
+      const api_path = `polls/${poll_name}/recommendations/random/`;
 
-    const process = async () => {
-      const threeWeeksAgo = getDateThreeWeeksAgo();
+      const nbrPerRow = request.videosNumber;
+      const extraNbr = request.additionalVideosNumber;
 
-      const languagesString = await recommendationsLanguages();
+      const recentToLoadRow1 = Math.round(nbrPerRow * RECENT_VIDEOS_RATIO);
+      const oldToLoadRow1 = Math.round(nbrPerRow * (1 - RECENT_VIDEOS_RATIO));
 
-      // Only one request for both videos and additional videos
-      const recentParams = new URLSearchParams([
-        ['date_gte', threeWeeksAgo],
-        ['limit', recentVideoToLoad + recentAdditionalVideoToLoad],
-        ...languagesString.split(',').map((l) => ['metadata[language]', l]),
-      ]);
-
-      const oldParams = new URLSearchParams([
-        ['date_lte', threeWeeksAgo],
-        ['limit', oldVideoToLoad + oldAdditionalVideoToLoad],
-        ...languagesString.split(',').map((l) => ['metadata[language]', l]),
-      ]);
-
-      const [recent, old] = await Promise.all([
-        request_recommendations(recentParams),
-        request_recommendations(oldParams),
-      ]);
-
-      // Cut the response into the part for the videos and the one for the additional videos
-      const videoRecent = recent.slice(0, recentVideoToLoad);
-      const videoOld = old.slice(0, oldVideoToLoad);
-      const additionalVideoRecent = recent.slice(recentVideoToLoad);
-      const additionalVideoOld = old.slice(oldVideoToLoad);
-
-      // Compute the actual number of videos from each category that will appear in the feed
-      // If there is not enough recent videos, use old ones of the same category instead
-      let numberOfRecentVideoToRespond = Math.round(
-        request.videosNumber * recentVideoProportion
+      const recentToLoadExtra = Math.round(
+        extraNbr * RECENT_VIDEOS_EXTRA_RATIO
       );
-      if (numberOfRecentVideoToRespond > videoRecent.length) {
-        numberOfRecentVideoToRespond = videoRecent.length;
-      }
-      const numberOfOldVideoToRespond =
-        request.videosNumber - numberOfRecentVideoToRespond;
-
-      let numberOfRecentAdditionalVideoToRespond = Math.round(
-        request.additionalVideosNumber *
-          recentVideoProportionForAdditionalVideos
-      );
-      if (
-        numberOfRecentAdditionalVideoToRespond > additionalVideoRecent.length
-      ) {
-        numberOfRecentAdditionalVideoToRespond = additionalVideoRecent.length;
-      }
-      const numberOfOldAdditionalVideoToRespond =
-        request.additionalVideosNumber - numberOfRecentAdditionalVideoToRespond;
-
-      // Select randomly which videos are selected, merge them, and shuffle them
-      // (separely for videos and additional videos)
-      const recentVideos = getRandomSubarray(
-        videoRecent,
-        numberOfRecentVideoToRespond
-      );
-      const oldVideos = getRandomSubarray(videoOld, numberOfOldVideoToRespond);
-      const videos = getRandomSubarray(
-        [...oldVideos, ...recentVideos],
-        request.videosNumber
+      const oldToLoadExtra = Math.round(
+        extraNbr * (1 - RECENT_VIDEOS_EXTRA_RATIO)
       );
 
-      const additionalRecentVideos = getRandomSubarray(
-        additionalVideoRecent,
-        numberOfRecentAdditionalVideoToRespond
-      );
-      const additionalOldVideos = getRandomSubarray(
-        additionalVideoOld,
-        numberOfOldAdditionalVideoToRespond
-      );
-      const additionalVideos = getRandomSubarray(
-        [...additionalRecentVideos, ...additionalOldVideos],
-        request.additionalVideosNumber
-      );
+      const process = async () => {
+        const threeWeeksAgo = getDateThreeWeeksAgo();
+        const recommendationsLangs =
+          await getRecommendationsLanguagesAuthenticated();
 
-      return {
-        data: [...videos, ...additionalVideos],
-        loadVideos: request.videosNumber > 0,
-        loadAdditionalVideos: request.additionalVideosNumber > 0,
+        const recentParams = new URLSearchParams([
+          ['date_gte', threeWeeksAgo],
+          [
+            'limit',
+            (recentToLoadRow1 + recentToLoadExtra) * BUNDLE_OVERFETCH_FACTOR,
+          ],
+          ['bundle', request.queryParamBundle],
+        ]);
+
+        const oldParams = new URLSearchParams([
+          ['date_lte', threeWeeksAgo],
+          ['limit', (oldToLoadRow1 + oldToLoadExtra) * BUNDLE_OVERFETCH_FACTOR],
+          ['bundle', request.queryParamBundle],
+        ]);
+
+        recommendationsLangs.forEach((lang) => {
+          if (lang !== '') {
+            oldParams.append('metadata[language]', lang);
+            recentParams.append('metadata[language]', lang);
+          }
+        });
+
+        const [poolRecent, poolOld] = await Promise.all([
+          request_recommendations(api_path, recentParams),
+          request_recommendations(api_path, oldParams),
+        ]);
+
+        const videosRecent = poolRecent.slice(0, recentToLoadRow1);
+        const videosRecentExtra = poolRecent.slice(recentToLoadRow1);
+        const videosOld = poolOld.slice(0, oldToLoadRow1);
+        const videosOldExtra = poolOld.slice(oldToLoadRow1);
+
+        // Compute the actual number of videos from each category that will appear in the feed.
+        // If there is not enough recent videos, use old ones of the same category instead.
+        let recentRow1Nbr = Math.round(nbrPerRow * RECENT_VIDEOS_RATIO);
+        if (recentRow1Nbr > videosRecent.length) {
+          recentRow1Nbr = videosRecent.length;
+        }
+
+        const oldRow1Nbr = nbrPerRow - recentRow1Nbr;
+
+        let recentExtraNbr = Math.round(extraNbr * RECENT_VIDEOS_EXTRA_RATIO);
+        if (recentExtraNbr > videosRecentExtra.length) {
+          recentExtraNbr = videosRecentExtra.length;
+        }
+
+        const oldExtraNbr = extraNbr - recentExtraNbr;
+
+        // Select randomly which videos are displayed, merge them, and shuffle them
+        // (separely for videos and extra videos).
+        const selectedRecentRow1 = getRandomSubarray(
+          videosRecent,
+          recentRow1Nbr
+        );
+        const selectedOldRow1 = getRandomSubarray(videosOld, oldRow1Nbr);
+
+        const row1 = getRandomSubarray(
+          [...selectedRecentRow1, ...selectedOldRow1],
+          nbrPerRow
+        );
+
+        const selectedRecentExtra = getRandomSubarray(
+          videosRecentExtra,
+          recentExtraNbr
+        );
+        const selectedOldExtra = getRandomSubarray(videosOldExtra, oldExtraNbr);
+
+        const extraRows = getRandomSubarray(
+          [...selectedRecentExtra, ...selectedOldExtra],
+          extraNbr
+        );
+
+        return {
+          data: [...row1, ...extraRows],
+          recommandationsLanguages: recommendationsLangs.join(','),
+          loadVideos: nbrPerRow > 0,
+          loadAdditionalVideos: extraNbr > 0,
+        };
       };
+      process().then(sendResponse);
+      return true;
+    } else if (request.message === 'getTournesolSearchRecommendations') {
+      const process = async () => {
+        const api_path = `polls/${poll_name}/recommendations/`;
+
+        const videosNumber = request.videosNumber;
+        const recommendationsLangs =
+          await getRecommendationsLanguagesAuthenticated();
+
+        // Only one request for both videos and additional videos
+        const params = new URLSearchParams([
+          ['limit', Math.max(20, videosNumber)],
+          ['search', request.search],
+          ['unsafe', false],
+          ['score_mode', 'default'],
+        ]);
+
+        recommendationsLangs.forEach((lang) => {
+          if (lang !== '') {
+            params.append('metadata[language]', lang);
+          }
+        });
+
+        const [videosList] = await Promise.all([
+          request_recommendations(api_path, params),
+        ]);
+
+        return {
+          data: videosList.splice(0, videosNumber),
+          recommandationsLanguages: recommendationsLangs.join(','),
+          loadVideos: request.videosNumber > 0,
+          loadAdditionalVideos: request.additionalVideosNumber > 0,
+        };
+      };
+      process().then(sendResponse);
+      return true;
+    }
+  } else if (request.message === 'getBanners') {
+    const process = async () => {
+      const path = 'backoffice/banners/';
+
+      const response = await fetchTournesolApi(path, { authenticate: false });
+      const banners =
+        response && response.ok ? await response.json() : undefined;
+
+      sendResponse({ banners });
     };
-    process().then(sendResponse);
+    process();
     return true;
   }
 });
@@ -345,6 +320,6 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
     chrome.tabs.sendMessage(event.tabId, 'historyStateUpdated');
   },
   {
-    url: [{ hostEquals: 'tournesol.app' }],
+    url: [{ hostEquals: frontendHost }],
   }
 );

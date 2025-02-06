@@ -59,7 +59,7 @@ function ComparisonsPage() {
       <Box display="flex" justifyContent="center">
         <Button
           component={Link}
-          to={`${baseUrl}/comparison?series=true`}
+          to={`${baseUrl}/comparison`}
           variant="contained"
           color="primary"
         >
@@ -70,7 +70,16 @@ function ComparisonsPage() {
   );
 
   const nbComparisonsMessage = (
-    <Typography variant="subtitle1" sx={{ textAlign: 'center', pt: 2 }}>
+    <Typography
+      variant="subtitle1"
+      textAlign="center"
+      sx={{
+        '& strong': {
+          color: 'secondary.main',
+          fontSize: '1.4em',
+        },
+      }}
+    >
       <Trans
         t={t}
         i18nKey="myComparisonsPage.listHasNbComparisons"
@@ -100,13 +109,14 @@ function ComparisonsPage() {
             <>
               {nbComparisonsMessage}
               <ComparisonList comparisons={comparisons} />
-              <Pagination
-                offset={offset}
-                count={comparisonCount}
-                onOffsetChange={handleOffsetChange}
-                limit={limit}
-                itemType={t('pagination.comparisons')}
-              />
+              {comparisonCount > limit && (
+                <Pagination
+                  offset={offset}
+                  count={comparisonCount}
+                  onOffsetChange={handleOffsetChange}
+                  limit={limit}
+                />
+              )}
             </>
           )}
         </LoaderWrapper>

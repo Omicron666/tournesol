@@ -5,6 +5,7 @@ ALLOWED_HOSTS:
     - 127.0.0.1
     - 0.0.0.0
     - {{api_domain_name}}
+    - {{domain_name}}  # django also serves HTML with dynamic meta tags in "ssr" app
 
 CORS_ALLOWED_ORIGINS:
     - "{{frontend_scheme}}://{{domain_name}}"
@@ -12,6 +13,8 @@ CORS_ALLOWED_ORIGINS:
 CORS_ALLOW_CREDENTIALS: true
 
 MAIN_URL: {{django_main_url}}/
+
+TOURNESOL_VERSION: {{git_reference}}
 
 DATABASE_NAME: {{django_database_name}}
 DATABASE_USER: {{django_database_user}}
@@ -31,9 +34,9 @@ OIDC_ISS_ENDPOINT: {{django_main_url}}
 OIDC_RSA_PRIVATE_KEY: |
   {{django_oidc_rsa_private_key | b64decode | indent(2)}}
 
-{% if django_email_backend == "smtp" %}
-REST_REGISTRATION_MAIN_URL: "{{frontend_scheme}}://{{domain_name}}/"
+TOURNESOL_MAIN_URL: "{{frontend_scheme}}://{{domain_name}}/"
 
+{% if django_email_backend == "smtp" %}
 EMAIL_BACKEND: 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST: {{django_email_host}}
 EMAIL_PORT: {{django_email_port}}
@@ -51,6 +54,8 @@ SWAGGER_UI_OAUTH2_CLIENT_SECRET: {{swagger_ui_oauth2_client_secret}}
 DJANGO_LOG_LEVEL: {{django_log_level}}
 
 YOUTUBE_API_KEY: {{youtube_api_key}}
+YOUTUBE_CHANNEL_CREDENTIALS_JSON: > # Multiline string in yaml will keep JSON string as is
+    {{ youtube_channel_credentials_json }}
 
 ENABLE_API_WIKIDATA:
     MIGRATIONS: {{django_enable_api_wikidata_migrations}}
@@ -64,6 +69,8 @@ TWITTERBOT_CREDENTIALS:
         "CONSUMER_SECRET": "{{consumer_secret_twitterbot_fr}}",
         "ACCESS_TOKEN": "{{access_token_twitterbot_fr}}",
         "ACCESS_TOKEN_SECRET": "{{access_token_secret_twitterbot_fr}}",
+        "ATPROTO_HANDLE": "tournesolbotfr.tournesol.app",
+        "ATPROTO_PASSWORD": "{{atproto_password_tournesolbot_fr}}",
     }
     "@TournesolBot": {
         "LANGUAGE": "en",
@@ -71,9 +78,12 @@ TWITTERBOT_CREDENTIALS:
         "CONSUMER_SECRET": "{{consumer_secret_twitterbot_en}}",
         "ACCESS_TOKEN": "{{access_token_twitterbot_en}}",
         "ACCESS_TOKEN_SECRET": "{{access_token_secret_twitterbot_en}}",
+        "ATPROTO_HANDLE": "tournesolbot.tournesol.app",
+        "ATPROTO_PASSWORD": "{{atproto_password_tournesolbot_en}}",
     }
 
 DISCORD_CHANNEL_WEBHOOKS: {
     infra_alert: "{{ discord_infra_alert_webhook }}",
+    infra_alert_private: "{{ discord_infra_alert_private_webhook }}",
     twitter: "{{ discord_twitter_webhook }}",
 }

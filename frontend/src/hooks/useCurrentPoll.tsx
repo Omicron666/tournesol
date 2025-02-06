@@ -6,6 +6,7 @@ import React, {
   useMemo,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { storage } from 'src/app/localStorage';
 import { PollsService, Poll } from 'src/services/openapi';
 import { LAST_POLL_NAME_STORAGE_KEY, polls } from 'src/utils/constants';
 import { YOUTUBE_POLL_NAME } from 'src/utils/constants';
@@ -33,6 +34,7 @@ const pollContext = React.createContext<PollContextValue>({
 
 export const PollProvider = ({ children }: { children: React.ReactNode }) => {
   const { i18n } = useTranslation();
+  const currentLang = i18n.resolvedLanguage || i18n.language;
 
   const initPollContext = () => {
     const pollName =
@@ -70,15 +72,13 @@ export const PollProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     // Persist the last poll in localStorage for future sessions (after signup, etc.)
-    if (localStorage) {
-      localStorage.setItem(LAST_POLL_NAME_STORAGE_KEY, contextValue.name);
-    }
+    storage?.setItem(LAST_POLL_NAME_STORAGE_KEY, contextValue.name);
   }, [contextValue.name]);
 
   useEffect(() => {
     // Fetch poll details from API, whenever the current context relates to another poll,
     // or the UI language has changed.
-    getPoll(contextValue.name, i18n.resolvedLanguage).then((poll) => {
+    getPoll(contextValue.name, currentLang).then((poll) => {
       setContextValue((value) => {
         if (value.name === poll.name) {
           return {
@@ -89,7 +89,7 @@ export const PollProvider = ({ children }: { children: React.ReactNode }) => {
         return value;
       });
     });
-  }, [i18n.resolvedLanguage, contextValue.name]);
+  }, [currentLang, contextValue.name]);
 
   return (
     <pollContext.Provider value={contextValue}>{children}</pollContext.Provider>

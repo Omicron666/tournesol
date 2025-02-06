@@ -2,7 +2,7 @@
 
 Tournesol is a collective project made possible by the contributions of many
 donors and volunteers. We would love for you to help us in this adventure to
-make the project even better. 
+make the project even better.
 
 **Table of Content**
 
@@ -28,7 +28,8 @@ make the project even better.
 
 ## Code of Conduct
 
-> coming soon
+Help us keep Tournesol open and inclusive. Please read and follow our
+[Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Efficient Ways to Contribute
 
@@ -68,7 +69,7 @@ large scale recommender systems research.
 ## Got a Question or Problem?
 
 Please do not open issues for general support questions as we want to keep
-GitHub issues for bug reports and feature requests.
+GitHub issues for bug reports.
 
 We collect and answer questions on [Discord][ts-discord-join], in the
 dedicated channels. This way all the community can benefit from your question
@@ -83,17 +84,22 @@ fix.
 
 ## Missing Feature?
 
-You can request a new feature by submitting an issue to our GitHub Repository.
-Depending on the subject or the complexity the development team will first
-evaluate the value of the feature for the whole community, then plan how it
-can be implemented and where it fits in the project's priorities.
+You can request a new feature by submitting a suggestion on
+[Discord][ts-discord-join]. We read all suggestions, even if we may not have
+the time to comment each of them.
+
+To review the suggestions, we first evaluate their value for the whole
+community, their complexity, and where they fit in the project's roadmap.
+
+When a suggestion is accepted we create ourselves the GitHub issues, and we
+mention them in the appropriate Discord threads.
 
 ## Working on the Source code
 
 ### The development process / Asking for review
 
 You can track progress of the code development in the dedicated
-[kaban board][ts-github-kanban].
+[kanban board][ts-github-kanban].
 
 Anyone can submit ideas that seem relevant, by creating new issues and
 placing them inside the column `Ideas / Backlog`.
@@ -144,12 +150,19 @@ end representation the back end OpenAPI schema.
 **step 3** Don't forget to re-generate the service files by running
 `scripts/generate-services-from-openapi.sh`
 
-If you're using `dev-env` you can update the schema and the service files by running the script `dev-env/update-openapi.sh`.
+If you're using `dev-env` you can update the schema and the service files by running the script
+`dev-env/update-openapi.sh`.
 
 #### Front end
 
 To correct the lint of frontend files, it is possible to activate plugin
-directly in your IDE. Otherwise the comamnd `yarn lint:fix` enables you to correct lint automatically.
+directly in your IDE. Otherwise the comamnd `yarn lint:fix` enables you to correct lint
+automatically.
+
+**Tips**:
+- Tournesol relies a lot on caching for performance, but it may hinder development in some
+contexts. It may be helpful to check the option "Disable Caching" in the Netwrok tab of your
+browser's developper tools.
 
 ### Translation
 
@@ -159,14 +172,13 @@ are defined and localized messages are updated, for English at least.
 Reviewers can help with the translation to French if necessary.
 
 On the frontend, translations are handled by `react-i18next`.
-* [This guide](https://react.i18next.com/guides/quick-start#translate-your-content)
-  may be useful to learn how to integrate translated content into React components. 
-* To extract the new translation keys, use [`yarn i18n:parse`](./frontend/README.md#yarn-i18nparse)
+
+- [This guide](https://react.i18next.com/guides/quick-start#translate-your-content)
+  may be useful to learn how to integrate translated content into React components.
+- To extract the new translation keys, use [`yarn i18n:parse`](./frontend/README.md#yarn-i18nparse)
 
 [ts-donate]: https://tournesol.app/about/donate
 [ts-compare]: https://tournesol.app/comparison
-
 [ts-github-repo]: https://github.com/tournesol-app/tournesol
 [ts-github-kanban]: https://github.com/tournesol-app/tournesol/projects/9
-
 [ts-discord-join]: https://discord.gg/WvcSG55Bf3

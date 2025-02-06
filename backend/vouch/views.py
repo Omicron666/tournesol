@@ -22,6 +22,7 @@ class VoucherCreateAPIView(generics.CreateAPIView):
 @extend_schema_view(
     delete=extend_schema(
         description="Delete a voucher given to a target user by the logged-in user.",
+        responses=None,
     ),
 )
 class VoucherGivenDestroyAPIView(generics.DestroyAPIView):
@@ -42,7 +43,8 @@ class VoucherGivenListAPIView(generics.ListAPIView):
     def get_queryset(self):
         return Voucher.objects.filter(
             by=self.request.user,
-        )
+            to__is_active=True,
+        ).order_by('to__username')
 
 
 @extend_schema_view(
@@ -57,4 +59,5 @@ class VoucherReceivedListAPIView(generics.ListAPIView):
     def get_queryset(self):
         return Voucher.objects.filter(
             to=self.request.user,
-        )
+            by__is_active=True,
+        ).order_by('by__username')

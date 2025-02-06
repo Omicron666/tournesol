@@ -2,17 +2,25 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 import makeStyles from '@mui/styles/makeStyles';
-import Typography from '@mui/material/Typography';
-import { Box, Slider, Grid, Checkbox, Chip, Tooltip } from '@mui/material';
-
-import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
-import { Link } from '@mui/material';
-import { CriteriaIcon } from 'src/components';
-import { criteriaLinks, getCriteriaTooltips } from 'src/utils/constants';
+import {
+  Box,
+  Slider,
+  Grid,
+  Checkbox,
+  Chip,
+  Tooltip,
+  Typography,
+} from '@mui/material';
 import { HelpOutline } from '@mui/icons-material';
 
-const SLIDER_MIN_STEP = -10;
-const SLIDER_MAX_STEP = 10;
+import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
+import { CriteriaIcon, InternalLink } from 'src/components';
+import { getCriteriaTooltips } from 'src/utils/constants';
+import { RouteID } from 'src/utils/types';
+
+export const SLIDER_SCORE_MAX = 10;
+const SLIDER_MIN_STEP = -SLIDER_SCORE_MAX;
+const SLIDER_MAX_STEP = +SLIDER_SCORE_MAX;
 const SLIDER_STEP = 1;
 
 const useStyles = makeStyles(() => ({
@@ -60,36 +68,50 @@ const CriteriaLabelWithTooltip = ({ children, criteria }: Props) => {
 };
 
 const CriteriaLabelWithLink = ({ children, criteria }: Props) => {
-  return criteriaLinks[criteria] ? (
-    <Link
-      color="text.secondary"
-      href={criteriaLinks[criteria]}
-      id={`id_explanation_${criteria}`}
-      target="_blank"
-      rel="noreferrer"
-      underline="hover"
-      sx={{ cursor: 'help' }}
-    >
-      {children}
-    </Link>
-  ) : (
-    <>{children}</>
+  const poll = useCurrentPoll();
+  const hasCriteriaPage = !poll.options?.disabledRouteIds?.includes(
+    RouteID.Criteria
   );
+
+  if (hasCriteriaPage) {
+    return (
+      <InternalLink
+        to={`${poll.baseUrl}/criteria#${criteria}`}
+        id={`id_explanation_${criteria}`}
+        target="_blank"
+        color="text.secondary"
+      >
+        {children}
+      </InternalLink>
+    );
+  }
+
+  return <>{children}</>;
 };
 
-const CriteriaLabel = ({
+export const CriteriaLabel = ({
   criteria,
   criteriaLabel,
+  tooltip = true,
 }: {
   criteria: string;
   criteriaLabel: string;
+  tooltip?: boolean;
 }) => {
   return (
-    <CriteriaLabelWithTooltip criteria={criteria}>
-      <CriteriaLabelWithLink criteria={criteria}>
-        {criteriaLabel}
-      </CriteriaLabelWithLink>
-    </CriteriaLabelWithTooltip>
+    <>
+      {tooltip ? (
+        <CriteriaLabelWithTooltip criteria={criteria}>
+          <CriteriaLabelWithLink criteria={criteria}>
+            {criteriaLabel}
+          </CriteriaLabelWithLink>
+        </CriteriaLabelWithTooltip>
+      ) : (
+        <CriteriaLabelWithLink criteria={criteria}>
+          {criteriaLabel}
+        </CriteriaLabelWithLink>
+      )}
+    </>
   );
 };
 
@@ -104,7 +126,11 @@ const CriteriaSlider = ({
   criteriaLabel: string;
   criteriaValue: number | undefined;
   disabled?: boolean;
-  handleSliderChange: (criteria: string, value: number | undefined) => void;
+  handleSliderChange: (
+    criteria: string,
+    value: number | undefined,
+    valueMax: number
+  ) => void;
 }) => {
   const { t } = useTranslation();
   const classes = useStyles();
@@ -166,7 +192,11 @@ const CriteriaSlider = ({
               disabled={disabled}
               checked={criteriaValue !== undefined}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                handleSliderChange(criteria, e.target.checked ? 0 : undefined)
+                handleSliderChange(
+                  criteria,
+                  e.target.checked ? 0 : undefined,
+                  SLIDER_SCORE_MAX
+                )
               }
               color="secondary"
               sx={{
@@ -203,7 +233,7 @@ const CriteriaSlider = ({
           track={false}
           disabled={disabled || criteriaValue === undefined}
           onChange={(_: Event, score: number | number[]) =>
-            handleSliderChange(criteria, score as number)
+            handleSliderChange(criteria, score as number, SLIDER_SCORE_MAX)
           }
         />
       </div>

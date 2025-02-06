@@ -1,8 +1,9 @@
 import logging
 
-from django.conf import settings
-from django.db.models import Case, F, Sum, When
+from django.db.models import Case, F, Prefetch, Sum, When
 from django.shortcuts import get_object_or_404
+from django.utils.cache import patch_vary_headers
+from django.utils.decorators import method_decorator
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
@@ -13,7 +14,7 @@ from drf_spectacular.utils import (
 from rest_framework import serializers
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 
-from tournesol.models import Entity, Poll
+from tournesol.models import Comparison, CriteriaRank, Entity, Poll
 from tournesol.models.entity_score import ScoreMode
 from tournesol.models.poll import ALGORITHM_MEHESTAN
 from tournesol.serializers.entity import EntityCriteriaDistributionSerializer
@@ -22,6 +23,7 @@ from tournesol.serializers.poll import (
     RecommendationSerializer,
     RecommendationsFilterSerializer,
 )
+from tournesol.utils.cache import cache_page_no_i18n
 from tournesol.utils.constants import CRITERIA_DEFAULT_WEIGHT, MEHESTAN_MAX_SCALED_SCORE
 from tournesol.views import PollScopedViewMixin
 
@@ -88,7 +90,7 @@ class PollRecommendationsBaseAPIView(PollScopedViewMixin, ListAPIView):
 
     It doesn't define any serializer, queryset nor permission.
     """
-
+    query_params_serializer = RecommendationsFilterSerializer
     search_score_coef = 2
     _weights_sum = None
 
@@ -98,13 +100,26 @@ class PollRecommendationsBaseAPIView(PollScopedViewMixin, ListAPIView):
         """
         return metadata_filter.split("[")[1][:-1]
 
+    def _exclude_compared_entities(self, queryset, exclude_compared, poll: Poll, user):
+        if exclude_compared and user.is_authenticated:
+            comparison_qs = Comparison.objects.filter(user=user, poll=poll)
+            compared_entities = set(
+                entity_id
+                for comparison in comparison_qs
+                for entity_id in [comparison.entity_1_id, comparison.entity_2_id]
+            )
+            return queryset.exclude(id__in=compared_entities)
+        return queryset
+
     def filter_by_parameters(self, request, queryset, poll: Poll):
         """
         Filter the queryset according to the URL parameters.
 
         The `unsafe` parameter is not processed by this method.
         """
-        filter_serializer = RecommendationsFilterSerializer(data=request.query_params)
+        user = self.request.user
+
+        filter_serializer = self.query_params_serializer(data=request.query_params)
         filter_serializer.is_valid(raise_exception=True)
         filters = filter_serializer.validated_data
 
@@ -125,10 +140,14 @@ class PollRecommendationsBaseAPIView(PollScopedViewMixin, ListAPIView):
         if metadata_filters:
             queryset = poll.entity_cls.filter_metadata(queryset, metadata_filters)
 
-        search = filters["search"]
+        search = filters.get("search")
         if search:
             languages = request.query_params.getlist("metadata[language]")
             queryset = poll.entity_cls.filter_search(queryset, search, languages)
+
+        exclude_compared = filters.get("exclude_compared_entities")
+        if exclude_compared:
+            queryset = self._exclude_compared_entities(queryset, exclude_compared, poll, user)
 
         return queryset, filters
 
@@ -141,11 +160,7 @@ class PollRecommendationsBaseAPIView(PollScopedViewMixin, ListAPIView):
         """
         if filters["unsafe"]:
             return queryset
-
-        return queryset.filter(
-            rating_n_contributors__gte=settings.RECOMMENDATIONS_MIN_CONTRIBUTORS,
-            tournesol_score__gt=0,
-        )
+        return queryset.filter_safe_for_poll(self.poll_from_url)
 
     def sort_results(self, queryset, filters):
         """
@@ -171,9 +186,12 @@ class PollRecommendationsBaseAPIView(PollScopedViewMixin, ListAPIView):
         """
         if filters["search"] and self.poll_from_url.algorithm == ALGORITHM_MEHESTAN:
             max_absolute_score = MEHESTAN_MAX_SCALED_SCORE * self._weights_sum
-            normalized_total_score = (
-                (F("total_score") + max_absolute_score) / (2 * max_absolute_score)
-            )
+            if max_absolute_score > 0:
+                normalized_total_score = (
+                    (F("total_score") + max_absolute_score) / (2 * max_absolute_score)
+                )
+            else:
+                normalized_total_score = 0
             queryset = queryset.alias(
                 search_score=F("relevance")
                 * (F("relevance") + self.search_score_coef * normalized_total_score)
@@ -228,7 +246,14 @@ class PollsView(RetrieveAPIView):
     """
 
     permission_classes = []
-    queryset = Poll.objects.prefetch_related("criteriarank_set__criteria")
+    queryset = Poll.objects.prefetch_related(
+        Prefetch(
+            "criteriarank_set",
+            queryset=CriteriaRank.objects.select_related("criteria").prefetch_related(
+                "criteria__locales"
+            ),
+        )
+    )
     lookup_field = "name"
     serializer_class = PollSerializer
 
@@ -259,6 +284,13 @@ class PollsRecommendationsView(PollRecommendationsBaseAPIView):
     queryset = Entity.objects.none()
     serializer_class = RecommendationSerializer
 
+    @method_decorator(cache_page_no_i18n(60 * 10))  # 10 minutes cache
+    def list(self, request, *args, **kwargs):
+        response = super().list(self, request, *args, **kwargs)
+        if request.query_params.get("exclude_compared_entities") == "true":
+            patch_vary_headers(response, ['Authorization'])
+        return response
+
     def annotate_and_prefetch_scores(self, queryset, request, poll: Poll):
         raw_score_mode = request.query_params.get("score_mode", ScoreMode.DEFAULT)
         try:
@@ -271,6 +303,13 @@ class PollsRecommendationsView(PollRecommendationsBaseAPIView):
         criteria_weight = self._build_criteria_weight_condition(
             request, poll, when="all_criteria_scores__criteria"
         )
+
+        # FIXME: we can significantly improve the performance of the queryset
+        # by filtering the criteria on their names, to remove those that are
+        # not present in the request.
+        #
+        #   ex:
+        #       all_criteria_scores__criteria__in=[...]
         queryset = queryset.filter(
             all_criteria_scores__poll=poll,
             all_criteria_scores__score_mode=score_mode,
@@ -281,9 +320,10 @@ class PollsRecommendationsView(PollRecommendationsBaseAPIView):
                 F("all_criteria_scores__score") * criteria_weight,
             )
         )
-
-        return queryset.filter(total_score__isnull=False).with_prefetched_scores(
-            poll_name=poll.name, mode=score_mode
+        return (
+            queryset.filter(total_score__isnull=False)
+            .with_prefetched_scores(poll_name=poll.name, mode=score_mode)
+            .with_prefetched_poll_ratings(poll_name=poll.name)
         )
 
     def get_queryset(self):
@@ -302,24 +342,14 @@ class PollsEntityView(PollScopedViewMixin, RetrieveAPIView):
     """
 
     poll_parameter = "name"
+    lookup_field = "uid"
 
     permission_classes = []
-    queryset = Entity.objects.none()
     serializer_class = RecommendationSerializer
 
-    def get_object(self):
-        """Get the entity based on the requested uid."""
-        entity_uid = self.kwargs.get("uid")
-        entity = get_object_or_404(Entity, uid=entity_uid)
-
-        # The `total_score` is not a natural attribute of an entity. It is
-        # used by the recommendations API and computed during the queryset
-        # building. The value of the `total_score` may vary depending on the
-        # criteria filters used in a recommendations HTTP request. As there is
-        # no such filters in the `PollsEntityView` we consider that the
-        # `total_score` matches the `tournesol_score`.
-        entity.total_score = entity.tournesol_score
-        return entity
+    def get_queryset(self):
+        poll = self.poll_from_url
+        return Entity.objects.with_prefetched_poll_ratings(poll_name=poll.name)
 
 
 class PollsCriteriaScoreDistributionView(PollScopedViewMixin, RetrieveAPIView):

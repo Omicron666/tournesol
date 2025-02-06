@@ -5,25 +5,25 @@ Entity and closely related models.
 import logging
 from collections import defaultdict
 from functools import cached_property
-from typing import List
+from typing import TYPE_CHECKING, List, Optional
+from urllib.parse import urljoin
 
 import numpy as np
 from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import IntegrityError, models
 from django.db.models import Prefetch, Q
 from django.db.models.expressions import RawSQL
 from django.utils import timezone
 from django.utils.html import format_html
-from tqdm.auto import tqdm
 
 from tournesol.entities import ENTITY_TYPE_CHOICES, ENTITY_TYPE_NAME_TO_CLASS
 from tournesol.entities.base import UID_DELIMITER, EntityType
 from tournesol.entities.video import TYPE_VIDEO, YOUTUBE_UID_NAMESPACE
 from tournesol.models.entity_score import EntityCriteriaScore, ScoreMode
-from tournesol.models.rate_later import RateLater
+from tournesol.models.rate_later import RATE_LATER_AUTO_REMOVE_DEFAULT, RateLater
 from tournesol.serializers.metadata import VideoMetadata
 from tournesol.utils.constants import MEHESTAN_MAX_SCALED_SCORE
 from tournesol.utils.video_language import (
@@ -32,6 +32,10 @@ from tournesol.utils.video_language import (
     SEARCH_CONFIG_CHOICES,
     language_to_postgres_config,
 )
+
+if TYPE_CHECKING:
+    from tournesol.models.entity_poll_rating import EntityPollRating
+    from tournesol.models.ratings import ContributorRating
 
 LANGUAGES = settings.LANGUAGES
 
@@ -42,12 +46,80 @@ class EntityQueryset(models.QuerySet):
             Prefetch(
                 "all_criteria_scores",
                 queryset=EntityCriteriaScore.objects.filter(
-                    poll__name=poll_name,
-                    score_mode=mode
+                    poll__name=poll_name, score_mode=mode
                 ),
-                to_attr="_prefetched_criteria_scores"
+                to_attr="_prefetched_criteria_scores",
             )
         )
+
+    def with_prefetched_contributor_ratings(self, poll, user, prefetch_criteria_scores=False):
+        # pylint: disable=import-outside-toplevel
+        from tournesol.models.ratings import ContributorRating
+
+        contributor_ratings = (
+            ContributorRating.objects.filter(poll=poll, user=user)
+            .annotate_n_comparisons()
+        )
+
+        if prefetch_criteria_scores:
+            contributor_ratings = contributor_ratings.prefetch_related("criteria_scores")
+
+        return self.prefetch_related(
+            Prefetch(
+                "contributorvideoratings",
+                queryset=contributor_ratings,
+                to_attr="_prefetched_contributor_ratings",
+            )
+        )
+
+    def with_prefetched_poll_ratings(self, poll_name):
+        # pylint: disable=import-outside-toplevel
+        from tournesol.models.entity_poll_rating import EntityPollRating
+
+        return self.prefetch_related(
+            Prefetch(
+                "all_poll_ratings",
+                queryset=EntityPollRating.objects.prefetch_related(
+                    "poll__all_entity_contexts__texts"
+                ).filter(
+                    poll__name=poll_name,
+                ),
+                to_attr="single_poll_ratings",
+            )
+        )
+
+    def filter_safe_for_poll(self, poll):
+        exclude_condition = None
+
+        for entity_context in poll.all_entity_contexts.all():
+            if not entity_context.enabled or not entity_context.unsafe:
+                continue
+
+            expression = None
+
+            for field, value in entity_context.predicate.items():
+                kwargs = {f"metadata__{field}": value}
+                if expression:
+                    expression = expression & Q(**kwargs)
+                else:
+                    expression = Q(**kwargs)
+
+            if exclude_condition:
+                # pylint: disable-next=unsupported-binary-operation
+                exclude_condition = exclude_condition | expression
+            else:
+                exclude_condition = expression
+
+        qst = self.filter(
+            all_poll_ratings__poll=poll,
+            all_poll_ratings__sum_trust_scores__gte=settings.RECOMMENDATIONS_MIN_TRUST_SCORES,
+            all_poll_ratings__tournesol_score__gt=settings.RECOMMENDATIONS_MIN_TOURNESOL_SCORE,
+        )
+
+        if exclude_condition:
+            qst = qst.exclude(exclude_condition)
+
+        return qst
 
     def filter_with_text_query(self, query: str, languages=None):
         """
@@ -99,9 +171,7 @@ class Entity(models.Model):
 
     class Meta:
         verbose_name_plural = "entities"
-        indexes = (
-            GinIndex(name="search_index", fields=['search_vector']),
-        )
+        indexes = (GinIndex(name="search_index", fields=["search_vector"]),)
 
     objects = EntityQueryset.as_manager()
 
@@ -125,37 +195,10 @@ class Entity(models.Model):
     last_metadata_request_at = models.DateTimeField(
         null=True,
         blank=True,
-        auto_now_add=True,
         help_text="Last time fetch of metadata was attempted",
     )
     add_time = models.DateTimeField(
         null=True, auto_now_add=True, help_text="Time the video was added to Tournesol"
-    )
-
-    # TODO
-    # the following fields should be moved in a n-n relation with Poll
-    tournesol_score = models.FloatField(
-        null=True,
-        blank=True,
-        default=None,
-        help_text="The aggregated of all criteria for all users in a specific poll.",
-    )
-
-    # TODO
-    # the following fields should be moved in a n-n relation with Poll
-    rating_n_ratings = models.IntegerField(
-        null=False,
-        default=0,
-        help_text="Total number of pairwise comparisons for this video"
-        "from certified contributors",
-    )
-
-    # TODO
-    # the following fields should be moved in a n-n relation with Poll
-    rating_n_contributors = models.IntegerField(
-        null=False,
-        default=0,
-        help_text="Total number of certified contributors who rated the video",
     )
 
     search_config_name = models.CharField(
@@ -189,36 +232,38 @@ class Entity(models.Model):
             if self.type in ENTITY_TYPE_NAME_TO_CLASS:
                 self.entity_cls.update_search_vector(self)
 
-    def update_n_ratings(self):
-        from .comparisons import Comparison  # pylint: disable=import-outside-toplevel
+    def update_entity_poll_rating(self, poll):
+        """
+        Update the related `EntityPollRating` object.
 
-        self.rating_n_ratings = Comparison.objects.filter(
-            Q(entity_1=self) | Q(entity_2=self)
-        ).count()
-        self.rating_n_contributors = (
-            Comparison.objects.filter(Q(entity_1=self) | Q(entity_2=self))
-            .distinct("user")
-            .count()
+        Keyword arguments:
+        poll -- the poll inside which the ratings will be saved
+        """
+        from .entity_poll_rating import EntityPollRating  # pylint: disable=import-outside-toplevel
+        entity_rating, _ = EntityPollRating.objects.get_or_create(
+            poll=poll, entity=self
         )
-        self.save(update_fields=["rating_n_ratings", "rating_n_contributors"])
+        entity_rating.update_n_ratings()
 
     def auto_remove_from_rate_later(self, poll, user) -> None:
         """
         When called, the entity is removed from the user's rate-later list if
-        it has been compared at least 4 times.
+        it has been compared enough times according to the user's auto remove
+        setting.
         """
         from .comparisons import Comparison  # pylint: disable=import-outside-toplevel
 
+        max_threshold = user.settings.get(poll.name, {}).get(
+            "rate_later__auto_remove", RATE_LATER_AUTO_REMOVE_DEFAULT
+        )
         n_comparisons = Comparison.objects.filter(
             poll=poll, user=user
         ).filter(
             Q(entity_1=self) | Q(entity_2=self)
         ).count()
 
-        if n_comparisons >= 4:
-            RateLater.objects.filter(
-                poll=poll, user=user, entity=self
-            ).delete()
+        if n_comparisons >= max_threshold:
+            RateLater.objects.filter(poll=poll, user=user, entity=self).delete()
 
     @property
     def entity_cls(self):
@@ -262,12 +307,14 @@ class Entity(models.Model):
     def __str__(self):
         return f"{self.uid}"
 
-    def link_to_youtube(self):
+    def link_to_tournesol(self):
         if self.type != TYPE_VIDEO:
             return None
-        return format_html(
-            '<a href="https://youtu.be/{}" target="_blank">Play ▶</a>', self.video_id
+
+        video_uri = urljoin(
+            settings.TOURNESOL_MAIN_URL, f"entities/yt:{self.video_id}"
         )
+        return format_html('<a href="{}" target="_blank">Play ▶</a>', video_uri)
 
     def criteria_scores_distributions(self, poll):
         """Returns the distribution of criteria score per criteria for the entity"""
@@ -295,57 +342,28 @@ class Entity(models.Model):
         criteria_distributions = []
         for key, values in scores_dict.items():
             score_range = (min_score_base, max_score_base)
-            distribution, bins = np.histogram(np.clip(values, *score_range), range=score_range)
+            distribution, bins = np.histogram(np.clip(
+                values, *score_range), bins=20, range=score_range)
 
             criteria_distributions.append(CriteriaDistributionScore(
                 key, distribution, bins))
         return criteria_distributions
 
-    @staticmethod
-    def recompute_quantiles():
-        """
-        WARNING: This implementation is obsolete, and relies on non-existing
-        fields "{criteria}_quantile" for videos.
-        """
-        from .poll import Poll  # pylint: disable=import-outside-toplevel
-
-        criteria_list = Poll.default_poll().criterias_list()
-        quantiles_by_feature_by_id = {criteria: {} for criteria in criteria_list}
-
-        # go over all features
-        for criteria in tqdm(criteria_list):
-            # order by feature (descenting, because using the top quantile)
-            qs = Entity.objects.filter(**{criteria + "__isnull": False}).order_by("-" + criteria)
-            quantiles_slicing = np.linspace(0.0, 1.0, len(qs))
-            for current_slice, video in tqdm(enumerate(qs)):
-                quantiles_by_feature_by_id[criteria][video.id] = quantiles_slicing[current_slice]
-
-        logging.warning("Writing quantiles...")
-        video_objects = []
-        # TODO: use batched updates with bulk_update
-        for entity in tqdm(Entity.objects.all()):
-            for criteria in criteria_list:
-                setattr(
-                    entity,
-                    criteria + "_quantile",
-                    quantiles_by_feature_by_id[criteria].get(entity.id, None),
-                )
-            video_objects.append(entity)
-
-        Entity.objects.bulk_update(
-            video_objects,
-            batch_size=200,
-            fields=[criteria + "_quantile" for criteria in criteria_list],
-        )
-
     @classmethod
-    def create_from_video_id(cls, video_id):
+    def create_from_video_id(cls, video_id, fetch_metadata=True):
         # pylint: disable=import-outside-toplevel
-        from tournesol.utils.api_youtube import get_video_metadata
+        from tournesol.utils.api_youtube import VideoNotFound, get_video_metadata
 
-        # Returns nothing if no YOUTUBE_API_KEY is not configured.
-        # Can also raise VideoNotFound if the video is private or not found by YouTube.
-        extra_data = get_video_metadata(video_id)
+        last_metadata_request_at = None
+        if fetch_metadata:
+            last_metadata_request_at = timezone.now()
+            try:
+                extra_data = get_video_metadata(video_id)
+            except VideoNotFound:
+                logging.warning("Failed to fetch YT metadata about %s", video_id)
+                raise
+        else:
+            extra_data = {}
 
         serializer = VideoMetadata(
             data={
@@ -353,6 +371,7 @@ class Entity(models.Model):
                 "video_id": video_id,
             }
         )
+
         if serializer.is_valid():
             metadata = serializer.data
         else:
@@ -360,14 +379,17 @@ class Entity(models.Model):
                 f"Unexpected errors in video metadata format: {serializer.errors}"
             )
 
-        entity = cls.objects.create(
-            type=TYPE_VIDEO,
-            uid=f"{YOUTUBE_UID_NAMESPACE}{UID_DELIMITER}{video_id}",
-            metadata=metadata,
-            metadata_timestamp=timezone.now(),
-        )
-
-        return entity
+        try:
+            return cls.objects.create(
+                type=TYPE_VIDEO,
+                uid=f"{YOUTUBE_UID_NAMESPACE}{UID_DELIMITER}{video_id}",
+                metadata=metadata,
+                metadata_timestamp=timezone.now(),
+                last_metadata_request_at=last_metadata_request_at,
+            )
+        except IntegrityError:
+            # A concurrent request may have created the video
+            return cls.get_from_video_id(video_id)
 
     @classmethod
     def get_from_video_id(cls, video_id):
@@ -393,6 +415,38 @@ class Entity(models.Model):
         if hasattr(self, "_prefetched_criteria_scores"):
             return list(self._prefetched_criteria_scores)
         return list(self.all_criteria_scores.filter(score_mode=ScoreMode.DEFAULT))
+
+    @property
+    def single_poll_rating(self) -> Optional["EntityPollRating"]:
+        try:
+            if len(self.single_poll_ratings) == 1:
+                return self.single_poll_ratings[0]
+            return None
+        except AttributeError as exc:
+            raise RuntimeError(
+                "Accessing 'single_poll_rating' requires to initialize a "
+                "queryset with `with_prefetched_poll_ratings()`"
+            ) from exc
+
+    @property
+    def single_contributor_rating(self) -> Optional["ContributorRating"]:
+        try:
+            if len(self._prefetched_contributor_ratings) == 1:
+                return self._prefetched_contributor_ratings[0]
+            return None
+        except AttributeError as exc:
+            raise RuntimeError(
+                "Accessing 'single_contributor_rating' requires to initialize a "
+                "queryset with `with_prefetched_contributor_ratings()"
+            ) from exc
+
+    @property
+    def single_poll_entity_contexts(self):
+        if self.single_poll_rating is None:
+            return []
+
+        poll = self.single_poll_rating.poll
+        return poll.get_entity_contexts(self.metadata)
 
 
 class CriteriaDistributionScore:

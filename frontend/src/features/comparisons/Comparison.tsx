@@ -1,22 +1,47 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Redirect, useHistory, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useSelector } from 'react-redux';
+import { useHistory, useLocation } from 'react-router-dom';
+import { TFunction, useTranslation } from 'react-i18next';
+import { Location } from 'history';
 
-import { CircularProgress, Grid, Typography, Card } from '@mui/material';
+import {
+  Box,
+  Card,
+  CircularProgress,
+  Grid,
+  useMediaQuery,
+  useTheme,
+} from '@mui/material';
 
-import { useNotifications } from 'src/hooks';
+import { useDocumentTitle, useNotifications } from 'src/hooks';
 import {
   UsersService,
   ComparisonRequest,
   ApiError,
 } from 'src/services/openapi';
-import ComparisonSliders from 'src/features/comparisons/ComparisonSliders';
 import EntitySelector, {
   SelectorValue,
 } from 'src/features/entity_selector/EntitySelector';
-import { getEntityName, UID_YT_NAMESPACE } from 'src/utils/constants';
+import { selectSettings } from 'src/features/settings/userSettingsSlice';
+import { SuggestionHistory } from 'src/features/suggestions/suggestionHistory';
+import { autoSuggestionPool } from 'src/features/suggestions/suggestionPool';
+import {
+  getEntityMetadataName,
+  getPollName,
+  UID_YT_NAMESPACE,
+} from 'src/utils/constants';
 import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
+import ComparisonEntityContexts from './ComparisonEntityContexts';
 import ComparisonHelper from './ComparisonHelper';
+import ComparisonInput from './ComparisonInput';
+import { ComparisonsContext } from 'src/pages/comparisons/Comparison';
 
 export const UID_PARAMS: { vidA: string; vidB: string } = {
   vidA: 'uidA',
@@ -27,32 +52,43 @@ const LEGACY_PARAMS: { vidA: string; vidB: string } = {
   vidB: 'videoB',
 };
 
-/**
- * Return an URLSearchParams without legacy parameters.
- */
-const rewriteLegacyParameters = (
-  uidA: string,
-  uidB: string,
-  legacyA: string | null,
-  legacyB: string | null,
-  paramVidA: string,
-  paramVidB: string
-) => {
-  const searchParams = new URLSearchParams();
-  searchParams.append(paramVidA, uidA);
-  searchParams.append(paramVidB, uidB);
+const COMPARISON_MAX_WIDTH = '880px';
 
-  if (legacyA && uidA === '') {
-    searchParams.delete(paramVidA);
-    searchParams.append(paramVidA, UID_YT_NAMESPACE + legacyA);
+const getUidsFromLocation = (location: Location) => {
+  const searchParams = new URLSearchParams(location.search);
+  let uidA = searchParams.get(UID_PARAMS.vidA);
+  if (uidA === null) {
+    const legacyA = searchParams.get(LEGACY_PARAMS.vidA);
+    if (legacyA) {
+      uidA = UID_YT_NAMESPACE + legacyA;
+    }
+  }
+  let uidB = searchParams.get(UID_PARAMS.vidB);
+  if (uidB === null) {
+    const legacyB = searchParams.get(LEGACY_PARAMS.vidB);
+    if (legacyB) {
+      uidB = UID_YT_NAMESPACE + legacyB;
+    }
+  }
+  return {
+    uidA,
+    uidB,
+  };
+};
+
+const createPageTitle = (
+  t: TFunction,
+  pollName: string,
+  nameA?: string,
+  nameB?: string
+): string | null => {
+  if (!nameA || !nameB) {
+    return null;
   }
 
-  if (legacyB && uidB === '') {
-    searchParams.delete(paramVidB);
-    searchParams.append(paramVidB, UID_YT_NAMESPACE + legacyB);
-  }
-
-  return searchParams;
+  const titleA = nameA.length <= 32 ? nameA : `${nameA.substring(0, 32)}…`;
+  const titleB = nameB.length <= 32 ? nameB : `${nameB.substring(0, 32)}…`;
+  return `${titleA} 🆚 ${titleB} | Tournesol ${getPollName(t, pollName)}`;
 };
 
 interface Props {
@@ -60,6 +96,8 @@ interface Props {
     uidA: string,
     uidB: string
   ) => { uid: string; refreshLeft: boolean };
+  autoFillSelectorA?: boolean;
+  autoFillSelectorB?: boolean;
 }
 
 /**
@@ -70,32 +108,35 @@ interface Props {
  * a entity uid is changed. Adding this component into a page will also add
  * these uids in the URL parameters.
  */
-const Comparison = ({ afterSubmitCallback }: Props) => {
-  const { t } = useTranslation();
+const Comparison = ({
+  afterSubmitCallback,
+  autoFillSelectorA = false,
+  autoFillSelectorB = false,
+}: Props) => {
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.resolvedLanguage;
+
+  const theme = useTheme();
+  const smallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
   const history = useHistory();
   const location = useLocation();
   const { showSuccessAlert, displayErrorsFrom } = useNotifications();
-  const { name: pollName } = useCurrentPoll();
+  const { setHasLoopedThroughCriteria } = useContext(ComparisonsContext);
+
+  const { name: pollName, options } = useCurrentPoll();
+  const mainCriterion = options?.mainCriterionName;
+
+  const initializeWithSuggestions = useRef(true);
   const [isLoading, setIsLoading] = useState(true);
+
+  const selectorAHistory = useRef(new SuggestionHistory(autoSuggestionPool));
+  const selectorBHistory = useRef(new SuggestionHistory(autoSuggestionPool));
+
   const [initialComparison, setInitialComparison] =
     useState<ComparisonRequest | null>(null);
 
-  const searchParams = new URLSearchParams(location.search);
-  const uidA: string = searchParams.get(UID_PARAMS.vidA) || '';
-  const uidB: string = searchParams.get(UID_PARAMS.vidB) || '';
-
-  // clean the URL by replacing legacy parameters by UIDs
-  const legacyA = searchParams.get(LEGACY_PARAMS.vidA);
-  const legacyB = searchParams.get(LEGACY_PARAMS.vidB);
-  const newSearchParams = rewriteLegacyParameters(
-    uidA,
-    uidB,
-    legacyA,
-    legacyB,
-    UID_PARAMS.vidA,
-    UID_PARAMS.vidB
-  );
-
+  const { uidA, uidB } = getUidsFromLocation(location);
   const [selectorA, setSelectorA] = useState<SelectorValue>({
     uid: uidA,
     rating: null,
@@ -105,43 +146,132 @@ const Comparison = ({ afterSubmitCallback }: Props) => {
     rating: null,
   });
 
+  const [pageTitle, setPageTitle] = useState(
+    `${t('comparison.newComparison')}`
+  );
+  useDocumentTitle(pageTitle);
+
+  useEffect(() => {
+    if (selectorA.rating?.entity && selectorB.rating?.entity) {
+      const nameA = getEntityMetadataName(pollName, selectorA.rating?.entity);
+      const nameB = getEntityMetadataName(pollName, selectorB.rating?.entity);
+      const title = createPageTitle(t, pollName, nameA, nameB);
+      if (title) {
+        setPageTitle(title);
+      }
+    } else {
+      setPageTitle(`${t('comparison.newComparison')}`);
+    }
+  }, [pollName, selectorA.rating?.entity, selectorB.rating?.entity, t]);
+
   const onChange = useCallback(
-    (uidKey: string) => (newValue: SelectorValue) => {
+    (vidKey: 'vidA' | 'vidB') => (newValue: SelectorValue) => {
       // `window.location` is used here, to avoid memoizing the location
       // defined in component state, which could be obsolete and cause a
       // race condition when the 2 selectors are updated concurrently.
       const searchParams = new URLSearchParams(window.location.search);
       const uid = newValue.uid;
 
+      const uidKey = UID_PARAMS[vidKey];
       if ((searchParams.get(uidKey) || '') !== uid) {
-        searchParams.delete(uidKey);
-
-        if (uid) {
-          searchParams.append(uidKey, uid);
-        }
-        history.push({ search: searchParams.toString() });
+        searchParams.set(uidKey, uid || '');
+        searchParams.delete(LEGACY_PARAMS[vidKey]);
+        history.replace({ search: searchParams.toString() });
       }
-      if (uidKey === UID_PARAMS.vidA) {
+
+      if (vidKey === 'vidA') {
         setSelectorA(newValue);
-      } else if (uidKey === UID_PARAMS.vidB) {
+
+        if (newValue.uid !== selectorA.uid) {
+          setHasLoopedThroughCriteria?.(false);
+        }
+      } else if (vidKey === 'vidB') {
         setSelectorB(newValue);
+
+        if (newValue.uid !== selectorB.uid) {
+          setHasLoopedThroughCriteria?.(false);
+        }
       }
     },
-    [history]
+    [history, selectorA.uid, selectorB.uid, setHasLoopedThroughCriteria]
   );
 
-  const onChangeA = useMemo(() => onChange(UID_PARAMS.vidA), [onChange]);
-  const onChangeB = useMemo(() => onChange(UID_PARAMS.vidB), [onChange]);
+  const onChangeA = useMemo(() => onChange('vidA'), [onChange]);
+  const onChangeB = useMemo(() => onChange('vidB'), [onChange]);
+
+  const userSettings = useSelector(selectSettings)?.settings;
+  const orderedByPreferences =
+    userSettings.videos?.comparison__criteria_order ?? [];
+
+  const orderedCriteriaRated =
+    [mainCriterion, ...orderedByPreferences].every((orderedCrit) =>
+      initialComparison?.criteria_scores.find(
+        (critScore) => critScore.criteria === orderedCrit
+      )
+    ) ?? false;
+
+  /**
+   * Automatically initialize the first comparison if the autoFill parameters
+   * are true.
+   */
+  useEffect(() => {
+    if (initializeWithSuggestions.current === false) {
+      return;
+    }
+
+    const autoFillComparison = async () => {
+      let autoUidA = null;
+      let autoUidB = null;
+
+      if (uidA) {
+        selectorAHistory.current.appendRight(pollName, uidA);
+      } else if (autoFillSelectorA) {
+        autoUidA = await selectorAHistory.current.nextRightOrSuggestion(
+          pollName,
+          [uidA, uidB]
+        );
+      }
+
+      if (uidB) {
+        selectorBHistory.current.appendRight(pollName, uidB);
+      } else if (autoFillSelectorB) {
+        autoUidB = await selectorBHistory.current.nextRightOrSuggestion(
+          pollName,
+          [autoUidA || uidA, uidB]
+        );
+      }
+
+      if (autoUidA) {
+        onChangeA({ uid: autoUidA, rating: null });
+      }
+      if (autoUidB) {
+        onChangeB({ uid: autoUidB, rating: null });
+      }
+
+      initializeWithSuggestions.current = false;
+    };
+
+    autoFillComparison();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
+    // Wait for the potential initialization of the suggested entities before
+    // retrieving the comparison.
+    if (initializeWithSuggestions.current) {
+      return;
+    }
+
     setIsLoading(true);
     setInitialComparison(null);
+
     if (selectorA.uid !== uidA) {
       setSelectorA({ uid: uidA, rating: null });
     }
     if (selectorB.uid !== uidB) {
       setSelectorB({ uid: uidB, rating: null });
     }
+
     if (uidA && uidB)
       UsersService.usersMeComparisonsRetrieve({
         pollName,
@@ -152,23 +282,55 @@ const Comparison = ({ afterSubmitCallback }: Props) => {
           setInitialComparison(comparison);
           setIsLoading(false);
         })
-        .catch((err) => {
-          console.error(err);
+        .catch(() => {
           setInitialComparison(null);
           setIsLoading(false);
         });
   }, [pollName, uidA, uidB, selectorA.uid, selectorB.uid]);
 
-  const onSubmitComparison = async (c: ComparisonRequest) => {
+  /**
+   * When the UI language changes, refresh the ratings to retrieve the
+   * corresponding localized entity contexts.
+   */
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    if (selectorA.uid) {
+      setSelectorA((value) => ({ ...value, ratingIsExpired: true }));
+    }
+
+    if (selectorB.uid) {
+      setSelectorB((value) => ({ ...value, ratingIsExpired: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLang]);
+
+  const onSubmitComparison = async (
+    c: ComparisonRequest,
+    partialUpdate?: boolean
+  ) => {
     try {
       if (initialComparison) {
         const { entity_a, entity_b, criteria_scores, duration_ms } = c;
-        await UsersService.usersMeComparisonsUpdate({
-          pollName,
-          uidA: entity_a.uid,
-          uidB: entity_b.uid,
-          requestBody: { criteria_scores, duration_ms },
-        });
+
+        if (partialUpdate === true) {
+          const resp = await UsersService.usersMeComparisonsPartialUpdate({
+            pollName,
+            uidA: entity_a.uid,
+            uidB: entity_b.uid,
+            requestBody: { criteria_scores, duration_ms },
+          });
+          setInitialComparison(resp);
+        } else {
+          await UsersService.usersMeComparisonsUpdate({
+            pollName,
+            uidA: entity_a.uid,
+            uidB: entity_b.uid,
+            requestBody: { criteria_scores, duration_ms },
+          });
+        }
       } else {
         await UsersService.usersMeComparisonsCreate({
           pollName,
@@ -203,108 +365,104 @@ const Comparison = ({ afterSubmitCallback }: Props) => {
       setSelectorB((value) => ({ ...value, ratingIsExpired: true }));
     }
 
-    showSuccessAlert(t('comparison.successfullySubmitted'));
+    if (smallScreen) {
+      showSuccessAlert(t('comparison.saved'), 1200);
+    } else {
+      showSuccessAlert(t('comparison.successfullySubmitted'));
+    }
   };
 
-  // redirect the user if at least one legacy parameters has been used
-  // existing UIDs always prevail
-  if (legacyA != null || legacyB != null) {
-    return (
-      <Redirect
-        to={{ pathname: location.pathname, search: newSearchParams.toString() }}
-      />
-    );
-  }
-
-  const entityName = getEntityName(t, pollName);
-
   return (
-    <Grid
-      container
-      sx={{
-        maxWidth: '880px',
-        gap: '8px',
-      }}
-    >
+    <>
       <Grid
-        item
-        xs
-        component={Card}
-        sx={{
-          alignSelf: 'start',
-        }}
+        container
+        gap={1}
+        mb={1}
+        maxWidth={COMPARISON_MAX_WIDTH}
+        // Allow the CriterionButtons to slide behind the entity selectors.
+        zIndex={theme.zIndex.comparisonElevation1}
       >
-        <EntitySelector
-          title={`${entityName} 1`}
-          value={selectorA}
-          onChange={onChangeA}
-          otherUid={uidB}
-        />
+        <Grid item xs display="flex" flexDirection="column" alignSelf="stretch">
+          <EntitySelector
+            alignment="left"
+            value={selectorA}
+            onChange={onChangeA}
+            otherUid={uidB}
+            history={selectorAHistory.current}
+            orderedCriteriaRated={orderedCriteriaRated}
+          />
+        </Grid>
+        <Grid item xs display="flex" flexDirection="column" alignSelf="stretch">
+          <EntitySelector
+            alignment="right"
+            value={selectorB}
+            onChange={onChangeB}
+            otherUid={uidA}
+            history={selectorBHistory.current}
+            orderedCriteriaRated={orderedCriteriaRated}
+          />
+        </Grid>
       </Grid>
-      <Grid
-        item
-        xs
-        component={Card}
-        sx={{
-          alignSelf: 'start',
-        }}
-      >
-        <EntitySelector
-          title={`${entityName} 2`}
-          value={selectorB}
-          onChange={onChangeB}
-          otherUid={uidA}
-        />
+      <Grid container gap={1} maxWidth={COMPARISON_MAX_WIDTH}>
+        <Grid
+          item
+          xs={12}
+          display="flex"
+          alignItems="center"
+          flexDirection="column"
+          sx={{
+            '&:empty': {
+              display: 'none',
+            },
+          }}
+          component={Card}
+          elevation={2}
+        >
+          <ComparisonHelper />
+        </Grid>
+        <Grid item xs={12} sx={{ '&:empty': { display: 'none' } }}>
+          <ComparisonEntityContexts
+            selectorA={selectorA}
+            selectorB={selectorB}
+          />
+        </Grid>
+        <Grid
+          item
+          xs={12}
+          display="flex"
+          alignItems="stretch"
+          flexDirection="column"
+          gap={1}
+          sx={{
+            '&:empty': { display: 'none' },
+          }}
+        >
+          {selectorA.rating && selectorB.rating ? (
+            isLoading ? (
+              <Box display="flex" justifyContent="center">
+                <CircularProgress color="secondary" />
+              </Box>
+            ) : (
+              <ComparisonInput
+                uidA={uidA || ''}
+                uidB={uidB || ''}
+                onSubmit={onSubmitComparison}
+                initialComparison={initialComparison}
+                isComparisonPublic={
+                  selectorA.rating.individual_rating.is_public &&
+                  selectorB.rating.individual_rating.is_public
+                }
+              />
+            )
+          ) : selectorA.uid && selectorB.uid ? (
+            // Entities are selected but ratings are not loaded yet
+            <Box display="flex" justifyContent="center">
+              <CircularProgress color="secondary" />
+            </Box>
+          ) : null}
+        </Grid>
       </Grid>
-      <Grid
-        item
-        xs={12}
-        sx={{
-          mt: 1,
-          display: 'flex',
-          alignItems: 'center',
-          flexDirection: 'column',
-          '&:empty': {
-            display: 'none',
-          },
-        }}
-        component={Card}
-        elevation={2}
-      >
-        <ComparisonHelper />
-      </Grid>
-      <Grid
-        item
-        xs={12}
-        sx={{
-          marginTop: 2,
-          display: 'flex',
-          alignItems: 'center',
-          flexDirection: 'column',
-          py: 3,
-        }}
-        component={Card}
-        elevation={2}
-      >
-        {selectorA.rating && selectorB.rating ? (
-          isLoading ? (
-            <CircularProgress />
-          ) : (
-            <ComparisonSliders
-              submit={onSubmitComparison}
-              initialComparison={initialComparison}
-              uidA={uidA}
-              uidB={uidB}
-              isComparisonPublic={
-                selectorA.rating.is_public && selectorB.rating.is_public
-              }
-            />
-          )
-        ) : (
-          <Typography>{t('comparison.pleaseSelectTwoItems')}</Typography>
-        )}
-      </Grid>
-    </Grid>
+    </>
   );
 };
 

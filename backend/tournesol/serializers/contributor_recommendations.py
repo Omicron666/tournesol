@@ -1,32 +1,25 @@
-from drf_spectacular.utils import extend_schema_field
-from rest_framework.serializers import SerializerMethodField
+from tournesol.models.ratings import ContributorRating
+from tournesol.serializers.criteria_score import ContributorCriteriaScoreSerializer
+from tournesol.serializers.poll import IndividualRatingSerializer, RecommendationSerializer
 
-from tournesol.serializers.poll import RecommendationSerializer
-from tournesol.serializers.rating import ContributorCriteriaScore
+
+class IndividualRatingWithScoresSerializer(IndividualRatingSerializer):
+    criteria_scores = ContributorCriteriaScoreSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ContributorRating
+        fields = IndividualRatingSerializer.Meta.fields + ["criteria_scores"]
+        read_only_fields = fields
 
 
 class ContributorRecommendationsSerializer(RecommendationSerializer):
     """
     An entity recommended by a user.
-
-    In addition to the fields inherited from `RecommendationSerializer`, this
-    serializer also display the public status of the `ContributorRating`
-    related to the trio poll / entity / user.
-
-    Note that the fields `n_comparisons` and `n_contributors` contain
-    the collective values, and are not specific to the user.
     """
-    is_public = SerializerMethodField()
-    criteria_scores = SerializerMethodField()
+    individual_rating = IndividualRatingWithScoresSerializer(
+        source="single_contributor_rating",
+        read_only=True,
+    )
 
     class Meta(RecommendationSerializer.Meta):
-        fields = RecommendationSerializer.Meta.fields + ["is_public"]
-
-    @extend_schema_field(ContributorCriteriaScore(many=True))
-    def get_criteria_scores(self, obj):
-        return ContributorCriteriaScore(
-            obj.contributorvideoratings.all()[0].criteria_scores.all(), many=True
-        ).data
-
-    def get_is_public(self, obj) -> bool:
-        return obj.contributorvideoratings.all()[0].is_public
+        fields = RecommendationSerializer.Meta.fields + ["individual_rating"]

@@ -1,6 +1,8 @@
 import { TFunction } from 'react-i18next';
 import { YouTube, HowToVote } from '@mui/icons-material';
 
+import { RelatedEntity } from 'src/services/openapi';
+
 import { AddToRateLaterList, CompareNowAction } from './action';
 import {
   getAllCandidates,
@@ -8,19 +10,23 @@ import {
 } from './polls/presidentielle2022';
 import {
   getTutorialVideos,
+  getTutorialTips as getVideosTutorialTips,
   getTutorialDialogs as getVideosTutorialDialogs,
+  getTutorialDialogActions as getVideosTutorialDialogActions,
 } from './polls/videos';
 import { SelectablePoll, RouteID } from './types';
+
+export const DEFAULT_DOCUMENT_TITLE = 'Tournesol';
 
 export const YOUTUBE_POLL_NAME = 'videos';
 export const PRESIDENTIELLE_2022_POLL_NAME = 'presidentielle2022';
 const PRESIDENTIELLE_2022_ENABLED =
-  process.env.REACT_APP_POLL_PRESIDENTIELLE_2022_ENABLED === 'true';
+  import.meta.env.REACT_APP_POLL_PRESIDENTIELLE_2022_ENABLED === 'true';
 
 const UID_DELIMITER = ':';
 export const UID_YT_NAMESPACE = 'yt' + UID_DELIMITER;
 
-export const recommendationFilters = {
+export const pollVideosFilters = {
   date: 'date',
   language: 'language',
   uploader: 'uploader',
@@ -36,7 +42,7 @@ export const recommendationFilters = {
   backfire_risk: 'backfire_risk',
 };
 
-export const defaultRecommendationFilters = {
+export const pollVideosInitialFilters = {
   date: null,
   language: null,
   uploader: null,
@@ -86,21 +92,6 @@ export const getCriteriaTooltips = (t: TFunction, criteria: string) => {
   }[criteria];
 };
 
-export const criteriaLinks: Record<string, string> = {
-  reliability: 'https://wiki.tournesol.app/wiki/Reliable_and_not_misleading',
-  pedagogy: 'https://wiki.tournesol.app/wiki/Clear_and_pedagogical',
-  importance: 'https://wiki.tournesol.app/wiki/Important_and_actionable',
-  layman_friendly: 'https://wiki.tournesol.app/wiki/Layman-friendly',
-  entertaining_relaxing:
-    'https://wiki.tournesol.app/wiki/Entertaining_and_relaxing',
-  engaging: 'https://wiki.tournesol.app/wiki/Engaging_and_thought-provoking',
-  diversity_inclusion:
-    'https://wiki.tournesol.app/wiki/Diversity_and_inclusion',
-  better_habits: 'https://wiki.tournesol.app/wiki/Encourages_better_habits',
-  backfire_risk:
-    'https://wiki.tournesol.app/wiki/Resilience_to_backfiring_risks',
-};
-
 export const getPollName = (t: TFunction, pollName: string) => {
   switch (pollName) {
     case PRESIDENTIELLE_2022_POLL_NAME:
@@ -120,6 +111,18 @@ export const getEntityName = (t: TFunction, pollName: string) => {
       return t('poll.entityVideo');
     default:
       return pollName;
+  }
+};
+
+export const getEntityMetadataName = (
+  pollName: string,
+  entity: RelatedEntity
+): string | undefined => {
+  switch (pollName) {
+    case YOUTUBE_POLL_NAME:
+      return entity.metadata.name;
+    default:
+      return undefined;
   }
 };
 
@@ -165,6 +168,29 @@ export const getRecommendationPageName = (
   }
 };
 
+export const getFeedTopItemsPageName = (t: TFunction, pollName: string) => {
+  switch (pollName) {
+    case YOUTUBE_POLL_NAME:
+      return t('feedTopItems.videos.title');
+    default:
+      return t('feedTopItems.generic.results');
+  }
+};
+
+/**
+ * User settings.
+ *
+ * As the back end doesn't provide the default values of the user settings, we
+ * define here the default values that should be used by the front end. In an
+ * ideal world they always match the default values used by the back end.
+ */
+
+export const DEFAULT_RATE_LATER_AUTO_REMOVAL = 4;
+
+export const YT_DEFAULT_AUTO_SELECT_ENTITIES = true;
+
+export const YT_DEFAULT_UI_WEEKLY_COL_GOAL_MOBILE = false;
+
 /*
   The most specific paths should be listed first,
   to be routed correctly.
@@ -179,7 +205,14 @@ export const polls: Array<SelectablePoll> = [
           displayOrder: 20,
           mainCriterionName: 'be_president',
           path: '/presidentielle2022/',
-          disabledRouteIds: [RouteID.MyRateLaterList, RouteID.MyComparedItems],
+          disabledRouteIds: [
+            RouteID.FeedTopItems,
+            RouteID.FeedForYou,
+            RouteID.Search,
+            RouteID.MyRateLaterList,
+            RouteID.MyComparedItems,
+            RouteID.Criteria,
+          ],
           iconComponent: HowToVote,
           withSearchBar: false,
           topBarBackground:
@@ -199,6 +232,8 @@ export const polls: Array<SelectablePoll> = [
     defaultAnonEntityActions: [],
     defaultRecoLanguageDiscovery: true,
     defaultRecoSearchParams: 'date=Month',
+    defaultFiltersFeedTopItems: 'date=Month',
+    defaultFiltersFeedForYou: 'date=Month&advanced=exclude_compared',
     allowPublicPersonalRecommendations: true,
     mainCriterionName: 'largely_recommended',
     displayOrder: 10,
@@ -208,10 +243,13 @@ export const polls: Array<SelectablePoll> = [
     withSearchBar: true,
     topBarBackground: null,
     comparisonsCanBePublic: true,
+    autoFillEmptySelectors: YT_DEFAULT_AUTO_SELECT_ENTITIES,
     extraMetadataOrderBy: ['duration', 'publication_date'],
     tutorialLength: 4,
     tutorialAlternatives: getTutorialVideos,
     tutorialDialogs: getVideosTutorialDialogs,
+    tutorialDialogActions: getVideosTutorialDialogActions,
+    tutorialTips: getVideosTutorialTips,
     tutorialRedirectTo: '/comparison',
     tutorialKeepUIDsAfterRedirect: true,
   },

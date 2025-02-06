@@ -1,34 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useTranslation, Trans } from 'react-i18next';
+
 import { Typography, Button } from '@mui/material';
-import { Statistics, StatsService } from 'src/services/openapi';
-import { useCurrentPoll } from 'src/hooks';
+
+import { ExternalLink } from 'src/components';
+import { getPollStats } from 'src/features/statistics/stats';
+import { useCurrentPoll, useStats } from 'src/hooks';
 
 // PublicDownloadSection is a paragraph displayed on the HomePage
 // that helps users know how to download the public video comparisons available for their use case
 const PublicDownloadSection = () => {
   const { t } = useTranslation();
-  const api_url = process.env.REACT_APP_API_URL;
   const { name: pollName } = useCurrentPoll();
 
-  const [userCount, setUserCount] = useState<number>(0);
-  const [comparedEntityCount, setComparedEntityCount] = useState<number>(0);
-  const [comparisonCount, setComparisonCount] = useState<number>(0);
+  const api_url = import.meta.env.REACT_APP_API_URL;
 
-  useEffect(() => {
-    StatsService.statsRetrieve()
-      .then((value: Statistics) => {
-        setUserCount(value.active_users.total);
-        const pollStats = value.polls.find(({ name }) => name === pollName);
-        if (pollStats !== undefined) {
-          setComparedEntityCount(pollStats.compared_entities.total);
-          setComparisonCount(pollStats.comparisons.total);
-        }
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }, [pollName]);
+  const stats = useStats({ poll: pollName });
+  const pollStats = getPollStats(stats, pollName);
+
+  const userCount = stats.active_users.total ?? 0;
+  const comparisonCount = pollStats?.comparisons.total ?? 0;
+  const comparedEntityCount = pollStats?.compared_entities.total ?? 0;
 
   return (
     <>
@@ -39,12 +31,12 @@ const PublicDownloadSection = () => {
           hope this important data will prove useful for researchers on ethics
           of algorithms and large scale recommender systems. Our public database
           can be downloaded by clicking the button below and is published under{' '}
-          <a
+          <ExternalLink
             href="https://opendatacommons.org/licenses/by/1-0/"
-            style={{ color: 'white' }}
+            sx={{ color: 'white' }}
           >
             Open Data Commons Attribution License (ODC-By)
-          </a>
+          </ExternalLink>
           .
         </Trans>
       </Typography>

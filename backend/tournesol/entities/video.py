@@ -13,6 +13,7 @@ from .base import UID_DELIMITER, EntityType
 
 TYPE_VIDEO = "video"
 
+YOUTUBE_PUBLISHED_AT_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 YOUTUBE_UID_NAMESPACE = "yt"
 YOUTUBE_UID_REGEX = (
     rf"({YOUTUBE_UID_NAMESPACE})({UID_DELIMITER})({YOUTUBE_VIDEO_ID_REGEX})"
@@ -38,12 +39,16 @@ class VideoEntity(EntityType):
         return ["duration", "publication_date"]
 
     @classmethod
+    def get_filter_date_field(cls):
+        return "metadata__publication_date"
+
+    @classmethod
     def filter_date_lte(cls, qs, max_date):
-        return qs.filter(metadata__publication_date__lte=max_date.date().isoformat())
+        return qs.filter(metadata__publication_date__lte=max_date.isoformat())
 
     @classmethod
     def filter_date_gte(cls, qs, min_date):
-        return qs.filter(metadata__publication_date__gte=min_date.date().isoformat())
+        return qs.filter(metadata__publication_date__gte=min_date.isoformat())
 
     @classmethod
     def get_uid_regex(cls, namespace: str) -> str:
@@ -51,13 +56,13 @@ class VideoEntity(EntityType):
             return YOUTUBE_UID_REGEX
         return ""
 
-    def update_metadata_field(self) -> None:
+    def update_metadata_field(self, compute_language=False, **kwargs) -> None:
         # pylint: disable=import-outside-toplevel
         from tournesol.utils.api_youtube import VideoNotFound, get_video_metadata
 
         try:
             metadata = get_video_metadata(
-                self.instance.metadata["video_id"], compute_language=False
+                self.instance.metadata["video_id"], compute_language=compute_language
             )
         except VideoNotFound:
             metadata = {}
@@ -72,13 +77,26 @@ class VideoEntity(EntityType):
     def metadata_needs_to_be_refreshed(self) -> bool:
         """
         Refresh will be executed only if the current metadata
-        are older than `VIDEO_METADATA_EXPIRE_SECONDS`.
+        are too old, relatively to the video publication date.
         The request can be forced with `.refresh_metadata(force=True)`.
         """
-        return self.instance.last_metadata_request_at is None or (
-            timezone.now() - self.instance.last_metadata_request_at
-            >= timedelta(seconds=settings.VIDEO_METADATA_EXPIRE_SECONDS)
-        )
+        if self.instance.last_metadata_request_at is None:
+            return True
+
+        now = timezone.now()
+        since_last_request = now - self.instance.last_metadata_request_at
+        if since_last_request < timedelta(minutes=1):
+            return False
+        if since_last_request > timedelta(days=30):
+            return True
+
+        publication_date = self.validated_metadata["publication_date"]
+        if publication_date is None:
+            return False
+
+        since_publication = now - publication_date
+        ratio = since_last_request / since_publication
+        return ratio > settings.VIDEO_METADATA_REFRESH_THRESHOLD
 
     @classmethod
     def update_search_vector(cls, entity) -> None:

@@ -5,8 +5,6 @@ The `tournesol` app routes.
 from django.urls import include, path, re_path
 from rest_framework import routers
 
-from tournesol.views.proof_of_vote import ProofOfVoteView
-
 from .views import ComparisonDetailApi, ComparisonListApi, ComparisonListFilteredApi
 from .views.contributor_recommendations import (
     PrivateContributorRecommendationsView,
@@ -30,7 +28,16 @@ from .views.polls import (
     PollsRecommendationsView,
     PollsView,
 )
-from .views.preview import DynamicWebsitePreviewDefault, DynamicWebsitePreviewEntity
+from .views.polls_reco_random import RandomRecommendationList
+from .views.previews import (
+    DynamicWebsitePreviewComparison,
+    DynamicWebsitePreviewDefault,
+    DynamicWebsitePreviewEntity,
+    DynamicWebsitePreviewFAQ,
+    DynamicWebsitePreviewRecommendations,
+)
+from .views.previews.recommendations import get_preview_recommendations_redirect_params
+from .views.proof import ProofView
 from .views.rate_later import RateLaterDetail, RateLaterList
 from .views.ratings import (
     ContributorRatingDetail,
@@ -38,6 +45,8 @@ from .views.ratings import (
     ContributorRatingUpdateAll,
 )
 from .views.stats import StatisticsView
+from .views.subsamples import SubSamplesList
+from .views.suggestions.to_compare import SuggestionsToCompare
 from .views.unconnected_entities import UnconnectedEntitiesView
 from .views.user import CurrentUserView
 from .views.video import VideoViewSet
@@ -51,6 +60,8 @@ urlpatterns = [
     path("", include(router.urls)),
     # User API
     path("users/me/", CurrentUserView.as_view(), name="users_me"),
+    # User settings API
+    path("users/me/", include("core.urls.user_settings")),
     # Voucher API
     path("users/me/", include("vouch.urls")),
     # Data exports
@@ -123,6 +134,18 @@ urlpatterns = [
         ContributorRatingDetail.as_view(),
         name="ratings_me_detail",
     ),
+    # Suggestions
+    path(
+        "users/me/suggestions/<str:poll_name>/tocompare/",
+        SuggestionsToCompare.as_view(),
+        name="suggestions_me_to_compare",
+    ),
+    # Sub-samples API
+    path(
+        "users/me/subsamples/<str:poll_name>/",
+        SubSamplesList.as_view(),
+        name="subsamples_me_detail",
+    ),
     # Inconsistencies API
     path(
         "users/me/inconsistencies/length_3_cycles/<str:poll_name>",
@@ -157,11 +180,11 @@ urlpatterns = [
         ContributorCriteriaCorrelationsView.as_view(),
         name="contributor_criteria_correlations",
     ),
-    # Proof of votes
+    # Contributors' proof API
     path(
-        "users/me/proof_of_votes/<str:poll_name>/",
-        ProofOfVoteView.as_view(),
-        name="proof_of_vote",
+        "users/me/proof/<str:poll_name>/",
+        ProofView.as_view(),
+        name="usersme-proof",
     ),
     # Email domain API
     path("domains/", EmailDomainsList.as_view(), name="email_domains_list"),
@@ -175,6 +198,11 @@ urlpatterns = [
         name="polls_recommendations",
     ),
     path(
+        "polls/<str:name>/recommendations/random/",
+        RandomRecommendationList.as_view(),
+        name="polls_recommendations_random",
+    ),
+    path(
         "polls/<str:name>/entities/<str:uid>",
         PollsEntityView.as_view(),
         name="polls_score_distribution",
@@ -185,10 +213,44 @@ urlpatterns = [
         name="polls_score_distribution",
     ),
     # Website Previews
+    re_path(
+        r"^preview/comparison/?$",
+        DynamicWebsitePreviewComparison.as_view(),
+        name="website_preview_comparison",
+    ),
     path(
         "preview/entities/<str:uid>",
         DynamicWebsitePreviewEntity.as_view(),
         name="website_preview_entity",
+    ),
+    re_path(
+        r"^preview/faq/?$",
+        DynamicWebsitePreviewFAQ.as_view(),
+        name="website_preview_faq",
+    ),
+    # This route creates the preview of an entity list.
+    path(
+        "preview/_recommendations/",
+        DynamicWebsitePreviewRecommendations.as_view(),
+        name="website_preview_recommendations_internal",
+    ),
+    # These routes rewrite the URL parameters to match those used by the
+    # recommendations of the polls API.
+    re_path(
+        r"^preview/search/?$",
+        get_preview_recommendations_redirect_params,
+        name="website_preview_search_redirect",
+    ),
+    re_path(
+        r"^preview/feed/top/?$",
+        get_preview_recommendations_redirect_params,
+        name="website_preview_feed_topitems_redirect",
+    ),
+    re_path(
+        # kept for backward compatibility, replaced by preview/search/
+        r"^preview/recommendations/?$",
+        get_preview_recommendations_redirect_params,
+        name="website_preview_recommendations_redirect",
     ),
     re_path(
         r"^preview/.*$",

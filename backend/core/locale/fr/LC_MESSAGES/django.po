@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-10-12 20:22+0000\n"
+"POT-Creation-Date: 2024-08-06 08:43+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,108 +18,42 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-#: core/models/user.py:36
-msgid "email address"
-msgstr "adresse e-mail"
+#: backoffice/admin.py:71
+msgid "Enable the selected banners."
+msgstr "Activer les bannières sélectionnées."
 
-#: core/models/user.py:294
-#, python-format
-msgid ""
-"A user with an email starting with '%(email)s' already exists in this domain."
-msgstr ""
-"Un utilisateur avec un e-mail commençant par '%(email)s' existe déjà dans ce "
-"domaine."
+#: backoffice/admin.py:75
+msgid "Disable the selected banners."
+msgstr "Désactiver les bannières sélectionnées."
 
-#: core/models/user.py:327 core/serializers/user.py:19
-msgid "A user with this email address already exists."
-msgstr "Un utilisateur avec cet e-mail existe déjà."
-
-#: core/serializers/user.py:28
-#, python-format
-msgid "'%(name)s' is a reserved username"
-msgstr "'%(name)s' est un nom d'utilisateur reservé"
-
-#: core/serializers/user.py:30
-msgid "'@' is not allowed in username"
-msgstr "Un nom d'utilisateur ne peut pas contenir '@'"
-
-#: core/templates/accounts/register/body.html:5
-msgid "Please verify your Tournesol account by clicking on this link:"
-msgstr ""
-"Veuillez confirmer la création de votre compte Tournesol en cliquant sur ce "
-"lien:"
-
-#: core/templates/accounts/register/subject.txt:2
-msgid "Please verify your Tournesol account"
-msgstr "Activation de votre compte Tournesol"
-
-#: core/templates/accounts/register_email/body.html:7
-msgid ""
-"You or someone else requested change to this e-mail for which there is an "
-"existing account.\n"
-"You need to either remove this account assigned to this e-mail or change the "
-"e-mail of it.\n"
-"\n"
-"If this wasn't you, please just ignore this email.\n"
-msgstr ""
-"Vous ou quelqu'un d'autre a demandé à utiliser cette adresse e-mail alors "
-"qu'un compte associé à cette adresse existe déjà.\n"
-"Vous pouvez soit supprimer ce compte, ou modifier l'adresse qui lui est "
-"associé.\n"
-"\n"
-"Si cette demande ne provient pas de vous, vous pouvez ignorer ce message.\n"
-
-#: core/templates/accounts/register_email/body.html:13
-#, python-format
-msgid "You can verify the email %(email)s by clicking on this link:"
-msgstr "Veuillez confirmer l'adresse e-mail %(email)s en cliquant sur ce lien:"
-
-#: core/templates/accounts/register_email/subject.txt:3
-msgid "Your e-mail is already in use on Tournesol"
-msgstr "Votre adresse e-mail est déjà utilisée sur Tournesol"
-
-#: core/templates/accounts/register_email/subject.txt:5
-msgid "Please verify new e-mail on Tournesol"
-msgstr "Veuillez confirmer votre nouvelle adresse e-mail sur Tournesol"
-
-#: core/templates/accounts/reset_password/body.html:6
-msgid "You can reset your password on Tournesol by clicking on this link:"
-msgstr ""
-"Vous pouvez réinitialiser votre mot de passe sur Tournesol en cliquant sur "
-"ce lien:"
-
-#: core/templates/accounts/reset_password/subject.txt:2
-msgid "Tournesol Password Reset"
-msgstr "Réinitialisation de votre mot de passe sur Tournesol"
-
-#: faq/admin.py:13
+#: backoffice/admin.py:81
 msgid "has answer?"
 msgstr "a une réponse?"
 
-#: faq/admin.py:18
+#: backoffice/admin.py:86
 msgid "Yes"
 msgstr "Oui"
 
-#: faq/admin.py:19
+#: backoffice/admin.py:87
 msgid "No"
 msgstr "Non"
 
-#: faq/admin.py:67
+#: backoffice/admin.py:132
 msgid "Enable the selected entries."
 msgstr "Activer les entrées sélectionnées."
 
-#: faq/admin.py:73
+#: backoffice/admin.py:138
 #, python-format
 msgid "%d entry was successfully marked as enabled."
 msgid_plural "%d entries were successfully marked as enabled."
 msgstr[0] "%d entrée a été activée avec succès."
 msgstr[1] "%d entrées ont été activées avec succès."
 
-#: faq/admin.py:81
+#: backoffice/admin.py:146
 msgid "Disable the selected entries."
 msgstr "Désactiver les entrées sélectionnées."
 
-#: faq/admin.py:87
+#: backoffice/admin.py:152
 #, python-format
 msgid "%d entry was successfully marked as disabled."
 msgid_plural "%d entries were successfully marked as disabled."
@@ -141,3 +75,307 @@ msgstr "L'utilisateur ciblé n'existe pas."
 #: vouch/serializers.py:52
 msgid "You cannot vouch for yourself."
 msgstr "Vous ne pouvez pas vous porter garant pour vous-même."
+
+#: core/admin.py:80
+msgid "Tournesol - trust"
+msgstr "Tournesol - confiance"
+
+#: core/admin.py:81
+msgid "Tournesol - preferences"
+msgstr "Tournesol - préférences"
+
+#: core/management/commands/remind_registrations.py:25
+#: core/templates/core/no_contrib_email/_body_header.inc.html:4
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:1
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:1
+msgid "Would you like to help the research on responsible algorithms?"
+msgstr "Vous souhaitez aider la recherche sur les algorithmes responsables?"
+
+#: core/models/user.py:31
+msgid "email address"
+msgstr "adresse e-mail"
+
+#: core/models/user.py:51
+msgid "The user' preferences."
+msgstr "Les préférences de l'utilisateur."
+
+#: core/models/user.py:124
+#, python-format
+msgid ""
+"A user with an email starting with '%(email)s' already exists in this domain."
+msgstr ""
+"Un utilisateur avec un e-mail commençant par '%(email)s' existe déjà dans ce "
+"domaine."
+
+#: core/models/user.py:169 core/serializers/user.py:20
+msgid "A user with this email address already exists."
+msgstr "Un utilisateur avec cet e-mail existe déjà."
+
+#: core/serializers/user.py:29
+#, python-format
+msgid "'%(name)s' is a reserved username"
+msgstr "'%(name)s' est un nom d'utilisateur reservé"
+
+#: core/serializers/user.py:31
+msgid "'@' is not allowed in username"
+msgstr "Un nom d'utilisateur ne peut pas contenir '@'"
+
+#: core/serializers/user_settings.py:56
+msgid "The main criterion cannot be in the list."
+msgstr "Le critère principal ne peut pas être présent."
+
+#: core/serializers/user_settings.py:59
+msgid "The list cannot contain duplicates."
+msgstr "La liste ne peut pas contenir des doublons."
+
+#: core/serializers/user_settings.py:64
+#, python-format
+msgid "Unknown criterion: %(criterion)s."
+msgstr "Critère inconnu: %(criterion)s."
+
+#: core/serializers/user_settings.py:71
+msgid "This parameter cannot be lower than 1."
+msgstr "Ce paramètre ne peut pas être inférieur à 1."
+
+#: core/serializers/user_settings.py:109
+#, python-format
+msgid "Unknown language code: %(lang)s."
+msgstr "Code de langue inconnu : %(lang)s."
+
+#: core/templates/accounts/register/body.html:11
+#: core/templates/accounts/register/body.txt:1
+msgid "Welcome to Tournesol"
+msgstr "Bienvenue sur Tournesol"
+
+#: core/templates/accounts/register/body.html:14
+#: core/templates/accounts/register/body.txt:3
+msgid ""
+"To activate your account, please verify your e-mail address by clicking on "
+"this link:"
+msgstr ""
+"Pour activer votre compte, veuillez vérifier votre adresse email en cliquant "
+"sur ce lien:"
+
+#: core/templates/accounts/register/body.html:17
+#: core/templates/accounts/register/body.txt:7
+msgid ""
+"If you have not created an account on the Tournesol platform, you can ignore "
+"this e-mail.\n"
+"Non-activated accounts are automatically deleted after a few days."
+msgstr ""
+"Si vous n'avez pas créé de compte sur la plateforme Tournesol, vous "
+"pouvez ignorer cet email.\n"
+"Les comptes non-activés sont automatiquement supprimés après quelques jours."
+
+#: core/templates/accounts/register/body.html:21
+#: core/templates/accounts/register/body.txt:11
+#: core/templates/accounts/register_email/body.html:26
+#: core/templates/accounts/register_email/body.txt:13
+#: core/templates/accounts/reset_password/body.html:17
+#: core/templates/accounts/reset_password/body.txt:8
+#: core/templates/core/no_contrib_email/_body_footer.inc.html:3
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:26
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:24
+msgid "The Tournesol team"
+msgstr "L'équipe Tournesol"
+
+#: core/templates/accounts/register/subject.txt:1
+msgid "Verify your Tournesol account"
+msgstr "Activation de votre compte Tournesol"
+
+#: core/templates/accounts/register_email/body.html:11
+#: core/templates/accounts/register_email/body.txt:1
+msgid "E-mail registration"
+msgstr "Enregistrement de l'email"
+
+#: core/templates/accounts/register_email/body.html:16
+#: core/templates/accounts/register_email/body.txt:3
+msgid ""
+"You or someone else requested change to this e-mail for which there is an "
+"existing account.\n"
+"You need to either remove this account assigned to this e-mail or change the "
+"e-mail of it.\n"
+"\n"
+"If this wasn't you, please just ignore this email."
+msgstr ""
+"Vous ou quelqu'un d'autre a demandé à utiliser cette adresse e-mail alors "
+"qu'un compte associé à cette adresse existe déjà.\n"
+"Vous pouvez soit supprimer ce compte, ou modifier l'adresse qui lui est "
+"associé.\n"
+"\n"
+"Si cette demande ne provient pas de vous, vous pouvez ignorer ce message."
+
+#: core/templates/accounts/register_email/body.html:22
+#: core/templates/accounts/register_email/body.txt:8
+#, python-format
+msgid "You can verify the email %(email)s by clicking on this link:"
+msgstr "Veuillez confirmer l'adresse email %(email)s en cliquant sur ce lien:"
+
+#: core/templates/accounts/register_email/subject.txt:3
+msgid "Your e-mail is already in use on Tournesol"
+msgstr "Votre adresse e-mail est déjà utilisée sur Tournesol"
+
+#: core/templates/accounts/register_email/subject.txt:5
+msgid "Verify your new e-mail on Tournesol"
+msgstr "Activez votre nouvelle adresse email sur Tournesol"
+
+#: core/templates/accounts/reset_password/body.html:11
+#: core/templates/accounts/reset_password/body.txt:1
+msgid "Password reset"
+msgstr "Réinitialisation de mot de passe"
+
+#: core/templates/accounts/reset_password/body.html:14
+#: core/templates/accounts/reset_password/body.txt:3
+msgid "You can reset your password on Tournesol by clicking on this link:"
+msgstr ""
+"Vous pouvez réinitialiser votre mot de passe sur Tournesol en cliquant sur "
+"ce lien:"
+
+#: core/templates/accounts/reset_password/subject.txt:1
+msgid "Tournesol password reset"
+msgstr "Réinitialisation de votre mot de passe sur Tournesol"
+
+#: core/templates/core/no_contrib_email/_body_footer.inc.html:3
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:25
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:23
+msgid "Many thanks"
+msgstr "Merci beaucoup"
+
+#: core/templates/core/no_contrib_email/_body_header.inc.html:6
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:3
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:3
+msgid "Hello 🌻"
+msgstr "Bonjour 🌻"
+
+#: core/templates/core/no_contrib_email/_body_header.inc.html:8
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:5
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:5
+msgid "(This email is an automatic reminder sent to new Tournesol users.)"
+msgstr ""
+"(Ce courriel est un rappel automatique envoyé aux nouveaux utilisateurs et "
+"utilisatrices.)"
+
+#: core/templates/core/no_contrib_email/_contrib_examples.inc.html:8
+#: core/templates/core/no_contrib_email/_contrib_examples.inc.txt:2
+msgid "Your history if you have an account on YouTube"
+msgstr "Votre historique si vous utilisez un compte sur YouTube"
+
+#: core/templates/core/no_contrib_email/_contrib_examples.inc.html:16
+#: core/templates/core/no_contrib_email/_contrib_examples.inc.txt:5
+msgid "The Tournesol recommendations of the last 30 days"
+msgstr "Les recommandations Tournesol des 30 derniers jours"
+
+#: core/templates/core/no_contrib_email/_contrib_examples.inc.html:24
+#: core/templates/core/no_contrib_email/_contrib_examples.inc.txt:8
+msgid "The best short videos on Tournesol"
+msgstr "Les meilleures vidéos courtes sur Tournesol"
+
+#: core/templates/core/no_contrib_email/_mobile_available.inc.html:2
+#: core/templates/core/no_contrib_email/_mobile_available.inc.txt:1
+msgid "Tournesol is also available on mobile 📱"
+msgstr "Tournesol est aussi disponible sur mobile 📱"
+
+#: core/templates/core/no_contrib_email/_mobile_available.inc.html:4
+#, python-format
+msgid ""
+"If\n"
+"your smartphone is compatible, you can add the Tournesol application to your "
+"home page by visiting the website\n"
+"%(ts_url)s with your browser, and clicking on Install from the main menu."
+msgstr ""
+"Si votre téléphone est compatible, vous pouvez ajouter l'application "
+"Tournesol à votre page d'accueil en visitant le site web %(ts_url)s avec "
+"votre navigateur, et en cliquant sur Installer depuis le menu principal."
+
+#: core/templates/core/no_contrib_email/_mobile_available.inc.txt:3
+msgid ""
+"If your smartphone is compatible, you can add the Tournesol application to "
+"your home page by\n"
+"visiting the website https://tournesol.app with your browser, and clicking "
+"on Install from the main\n"
+"menu."
+msgstr ""
+"Si votre téléphone est compatible, vous pouvez ajouter l'application "
+"Tournesol à votre page d'accueil en visitant le site web https://tournesol."
+"app avec votre navigateur, et en cliquant sur Installer depuis le menu "
+"principal."
+
+#: core/templates/core/no_contrib_email/body_no_contrib.html:10
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:7
+msgid ""
+"Tournesol works thanks to the contributions of many people who volunteer "
+"their time to compare\n"
+"the videos they've seen on YouTube. We look forward to your contributions, "
+"if you have time of\n"
+"course."
+msgstr ""
+"Tournesol fonctionne grâce aux contributions de nombreuses personnes qui, "
+"bénévolement, prennent un peu de leur temps pour comparer les vidéos qu'ils "
+"et elles ont vues sur YouTube. On espère pouvoir bénéficier bientôt de vos "
+"contributions. Si vous avez le temps, bien entendu."
+
+#: core/templates/core/no_contrib_email/body_no_contrib.html:15
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:11
+msgid ""
+"Every comparison you make helps to identify the videos of public interest "
+"that the platform\n"
+"recommends to thousands of people, and helps advance research in ethics and "
+"security of recommender\n"
+"systems."
+msgstr ""
+"Chaque comparaison que vous faites permet d'identifier les vidéos d'utilité "
+"publique que la plateforme recommande à des milliers de personnes, et aide "
+"la recherche en éthique et sécurité des systèmes de recommandation."
+
+#: core/templates/core/no_contrib_email/body_no_contrib.html:20
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:15
+#: core/templates/core/no_contrib_email/body_signup_contrib.html:18
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:13
+msgid ""
+"If every registered user makes at least 10 comparisons, the size of the "
+"Tournesol public\n"
+"dataset will double! This would be a huge step forward for the project."
+msgstr ""
+"Si chaque personne inscrite effectuait au moins 10 comparaisons, alors la "
+"base de données de publique de Tournesol serait deux fois plus grande ! Ce "
+"serait un énorme pas en avant pour le projet."
+
+#: core/templates/core/no_contrib_email/body_no_contrib.html:23
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:19
+msgid "What can I do? 🤔"
+msgstr "Que puis-je faire ? 🤔"
+
+#: core/templates/core/no_contrib_email/body_no_contrib.html:24
+#: core/templates/core/no_contrib_email/body_no_contrib.txt:21
+#: core/templates/core/no_contrib_email/body_signup_contrib.html:22
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:19
+msgid "Here are examples of videos you could compare:"
+msgstr "Voici des exemples de vidéos que vous pourriez comparer :"
+
+#: core/templates/core/no_contrib_email/body_signup_contrib.html:10
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:7
+msgid ""
+"We would like to thank you for taking the time to contribute to the project. "
+"Your comparisons\n"
+"already improve the recommendations made to thousands of users, and also the "
+"public dataset."
+msgstr ""
+"Nous vous remercions d'avoir pris le temps de contribuer au projet. Vos "
+"comparaisons améliorent déjà les recommandations faites à des milliers de "
+"personnes, ainsi que la base de données publique."
+
+#: core/templates/core/no_contrib_email/body_signup_contrib.html:14
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:10
+msgid ""
+"Tournesol works thanks to contributors who, like you, volunteer their time "
+"to compare videos.\n"
+"If you have time, we hope to see you again on the platform."
+msgstr ""
+"Tournesol fonctionne grâce à des personnes qui, comme vous, donnent un peu "
+"de leur temps pour comparer des videos. Si vous avez le temps, nous espérons "
+"vous revoir bientôt sur la plateforme."
+
+#: core/templates/core/no_contrib_email/body_signup_contrib.html:21
+#: core/templates/core/no_contrib_email/body_signup_contrib.txt:17
+msgid "Which videos can I compare? 🤔"
+msgstr "Quelles vidéos puis-je comparer ? 🤔"

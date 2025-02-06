@@ -10,11 +10,11 @@ class VideoMetadata(serializers.Serializer):
     description = serializers.CharField(allow_blank=True, default="")
     uploader = serializers.CharField(allow_blank=True, default="")
     channel_id = serializers.CharField(allow_null=True, default=None)
-    publication_date = serializers.DateField(allow_null=True, default=None)
+    publication_date = serializers.DateTimeField(allow_null=True, default=None)
     duration = serializers.IntegerField(
         allow_null=True,
         default=None,
-        help_text="Duration in seconds"
+        help_text="Duration in seconds. May be null (e.g on live streams)"
     )
     views = serializers.IntegerField(allow_null=True, default=None)
     language = serializers.CharField(allow_null=True, default=None)

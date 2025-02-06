@@ -1,14 +1,23 @@
-import React, { useEffect, useMemo, useCallback, useState } from 'react';
-import { Theme } from '@mui/material/styles';
-import makeStyles from '@mui/styles/makeStyles';
-import { Box, Typography } from '@mui/material';
+import React, { useEffect, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useDrag } from '@use-gesture/react';
+import { Vector2 } from '@use-gesture/core/types';
 
-import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
-import { UserRatingPublicToggle } from 'src/features/videos/PublicStatusAction';
+import {
+  Box,
+  Grid,
+  Slide,
+  Theme,
+  Typography,
+  useMediaQuery,
+} from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+
+import { useCurrentPoll, useEntityAvailable, useLoginState } from 'src/hooks';
+import { ENTITY_AVAILABILITY } from 'src/hooks/useEntityAvailable';
 import EntityCard from 'src/components/entity/EntityCard';
 import EmptyEntityCard from 'src/components/entity/EmptyEntityCard';
-import { ActionList } from 'src/utils/types';
-import { extractVideoId } from 'src/utils/video';
+import { SuggestionHistory } from 'src/features/suggestions/suggestionHistory';
 import {
   UsersService,
   ContributorRating,
@@ -18,66 +27,63 @@ import {
 import { UID_YT_NAMESPACE, YOUTUBE_POLL_NAME } from 'src/utils/constants';
 
 import AutoEntityButton from './AutoEntityButton';
-import EntityInput from './EntityInput';
-import { useLoginState } from 'src/hooks';
+import EntitySelectButton from './EntitySelectButton';
+import EntitySelectorControls from './EntitySelectorControls';
+import { extractVideoId } from 'src/utils/video';
+import { entityCardMainSx } from 'src/components/entity/style';
 
-const useStyles = makeStyles((theme: Theme) => ({
-  root: {
-    margin: 0,
-  },
-  controls: {
-    margin: 4,
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  },
-  input: {
-    [theme.breakpoints.down('sm')]: {
-      fontSize: '0.7rem',
-    },
-  },
-}));
+const ENTITY_CARD_SWIPE_TIMEOUT = 180;
+// The minimum velocity per axis in pixels / ms.
+const ENTITY_CARD_SWIPE_VELOCITY: number | Vector2 = [0.25, 0.25];
 
 interface Props {
-  title: string;
+  alignment?: 'left' | 'right';
   value: SelectorValue;
   onChange: (newValue: SelectorValue) => void;
   otherUid: string | null;
   variant?: 'regular' | 'noControl';
+  history?: SuggestionHistory;
+  // Should be true when the default displayed criteria configured by the user
+  // have been rated.
+  orderedCriteriaRated?: boolean;
 }
 
 export interface SelectorValue {
-  uid: string;
+  uid: string | null;
   rating: ContributorRating | null;
   ratingIsExpired?: boolean;
 }
 
-const isUidValid = (uid: string) => uid.match(/\w+:.+/);
+const isUidValid = (uid: string | null) =>
+  uid === null ? false : uid.match(/\w+:.+/);
 
 const EntitySelector = ({
-  title,
+  alignment = 'left',
   value,
   onChange,
   otherUid,
   variant = 'regular',
+  history,
+  orderedCriteriaRated = false,
 }: Props) => {
-  const classes = useStyles();
   const { isLoggedIn } = useLoginState();
 
   return (
-    <div className={classes.root}>
+    <>
       {isLoggedIn ? (
         <EntitySelectorInnerAuth
-          title={title}
           value={value}
           onChange={onChange}
           otherUid={otherUid}
+          alignment={alignment}
           variant={variant}
+          history={history}
+          orderedCriteriaRated={orderedCriteriaRated}
         />
       ) : (
         <EntitySelectorInnerAnonymous value={value} />
       )}
-    </div>
+    </>
   );
 };
 
@@ -90,12 +96,14 @@ const EntitySelectorInnerAnonymous = ({ value }: { value: SelectorValue }) => {
 
   const { uid } = value;
   const [entityFallback, setEntityFallback] = useState<Recommendation>();
-
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     async function getEntity() {
-      return await PollsService.pollsEntitiesRetrieve({ name: pollName, uid });
+      return await PollsService.pollsEntitiesRetrieve({
+        name: pollName,
+        uid: uid || '',
+      });
     }
 
     // Wait for a not null / not empty UID before making an HTTP request.
@@ -108,25 +116,40 @@ const EntitySelectorInnerAnonymous = ({ value }: { value: SelectorValue }) => {
   }, [isLoggedIn, pollName, uid]);
 
   return entityFallback ? (
-    <EntityCard compact entity={entityFallback} settings={undefined} />
+    <EntityCard compact result={entityFallback} />
   ) : (
     <EmptyEntityCard compact loading={loading} />
   );
 };
 
 const EntitySelectorInnerAuth = ({
-  title,
   value,
   onChange,
   otherUid,
+  alignment,
   variant,
+  history,
+  orderedCriteriaRated,
 }: Props) => {
+  const theme = useTheme();
+  const smallScreen = useMediaQuery(
+    (theme: Theme) => `${theme.breakpoints.down('sm')}, (pointer: coarse)`,
+    { noSsr: true }
+  );
+
+  const { t } = useTranslation();
   const { name: pollName, options } = useCurrentPoll();
 
   const { uid, rating, ratingIsExpired } = value;
 
+  const [slideIn, setSlideIn] = useState(true);
+  const [slideDirection, setSlideDirection] = useState<'up' | 'down'>('down');
+
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState(value.uid);
+  const { availability: entityAvailability } = useEntityAvailable(
+    value.uid ?? ''
+  );
 
   let showEntityInput = true;
   let showRatingControl = true;
@@ -143,7 +166,7 @@ const EntitySelectorInnerAuth = ({
       const contributorRating =
         await UsersService.usersMeContributorRatingsRetrieve({
           pollName,
-          uid,
+          uid: uid || '',
         });
       onChange({
         uid,
@@ -157,7 +180,7 @@ const EntitySelectorInnerAuth = ({
             await UsersService.usersMeContributorRatingsCreate({
               pollName,
               requestBody: {
-                uid,
+                uid: uid || '',
                 is_public: options?.comparisonsCanBePublic === true,
               },
             });
@@ -174,23 +197,31 @@ const EntitySelectorInnerAuth = ({
       }
     }
     setLoading(false);
+    setSlideIn(true);
   }, [onChange, options?.comparisonsCanBePublic, pollName, uid]);
 
+  /**
+   * Load the user's rating.
+   */
   useEffect(() => {
     if (isUidValid(uid) && rating == null) {
       loadRating();
     }
   }, [loadRating, rating, uid]);
 
+  /**
+   * Reload rating after the parent (comparison) form has been submitted.
+   */
   useEffect(() => {
-    // Reload rating after the parent (comparison) form has been submitted.
     if (ratingIsExpired) {
       loadRating();
     }
   }, [loadRating, ratingIsExpired]);
 
+  /**
+   * Update input value when "uid" has been changed by the parent component.
+   */
   useEffect(() => {
-    // Update input value when "uid" has been changed by the parent component
     setInputValue((previousValue) => {
       if (previousValue !== uid) {
         return uid;
@@ -231,71 +262,217 @@ const EntitySelectorInnerAuth = ({
     [onChange]
   );
 
-  const toggleAction: ActionList = useMemo(() => {
-    return rating?.is_public != null
-      ? [
-          <UserRatingPublicToggle
-            key="isPublicToggle"
-            uid={rating.entity.uid}
-            nComparisons={rating.n_comparisons}
-            isPublic={rating.is_public}
-            onChange={handleRatingUpdate}
-          />,
-        ]
-      : [];
-  }, [handleRatingUpdate, rating]);
+  const bindDrag = useDrag(
+    ({ swipe, type }) => {
+      if (variant === 'noControl' || slideIn === false) {
+        return;
+      }
+
+      if (type === 'pointerup' || type === 'touchend') {
+        // On swipe up
+        if (swipe[1] < 0) {
+          slideUp();
+        }
+        // On swipe down
+        if (swipe[1] > 0) {
+          slideDown();
+        }
+      }
+    },
+    { swipe: { velocity: ENTITY_CARD_SWIPE_VELOCITY } }
+  );
+
+  const onSlideEntered = () => {
+    setSlideDirection('down');
+    setLoading(false);
+  };
+
+  const onSlideExited = async () => {
+    if (slideDirection === 'up') {
+      const newUid = await history?.nextLeftOrSuggestion(pollName, [
+        uid,
+        otherUid,
+      ]);
+
+      if (newUid) {
+        setSlideDirection('down');
+        onChange({ uid: newUid, rating: null });
+      } else {
+        setSlideIn(true);
+      }
+    } else {
+      const newUid = await history?.nextRightOrSuggestion(pollName, [
+        uid,
+        otherUid,
+      ]);
+
+      if (newUid) {
+        setSlideDirection('up');
+        onChange({ uid: newUid, rating: null });
+      } else {
+        console.warn('No entity found by the function nextSuggestion.');
+        setSlideIn(true);
+      }
+    }
+  };
+
+  const slideUp = async () => {
+    if (loading || !slideIn) {
+      return;
+    }
+
+    setSlideDirection('down');
+    setLoading(true);
+    setInputValue('');
+    setSlideIn(false);
+  };
+
+  const slideDown = () => {
+    if (loading || !slideIn) {
+      return;
+    }
+
+    setSlideDirection('up');
+    setLoading(true);
+    setInputValue('');
+    setSlideIn(false);
+  };
 
   return (
     <>
-      {showEntityInput && (
-        <>
-          <Box
-            mx={1}
-            marginTop="4px"
-            display="flex"
-            flexDirection="row"
-            alignItems="center"
-          >
-            <Typography
-              variant="h6"
-              color="secondary"
-              flexGrow={1}
-              sx={{ '&:first-letter': { textTransform: 'capitalize' } }}
-            >
-              {title}
-            </Typography>
-            <AutoEntityButton
-              disabled={loading}
-              currentUid={uid}
-              otherUid={otherUid}
-              onClick={() => {
-                setInputValue('');
-                setLoading(true);
-              }}
-              onResponse={(uid) => {
-                uid ? onChange({ uid, rating: null }) : setLoading(false);
-              }}
-            />
-          </Box>
-
-          <Box mx={1} marginBottom={1}>
-            <EntityInput
-              value={inputValue || uid}
-              onChange={handleChange}
-              otherUid={otherUid}
-            />
-          </Box>
-        </>
+      {showEntityInput && !smallScreen && (
+        <Box mb={1}>
+          <EntitySelectorControls
+            alignment={alignment}
+            uid={uid}
+            otherUid={otherUid}
+            inputValue={inputValue}
+            history={history}
+            disabled={loading}
+            onAutoClick={slideUp}
+            onEntitySelect={handleChange}
+            orderedCriteriaRated={orderedCriteriaRated}
+          />
+        </Box>
       )}
-
-      {rating ? (
-        <EntityCard
-          compact
-          entity={rating.entity}
-          settings={showRatingControl ? toggleAction : undefined}
-        />
-      ) : (
-        <EmptyEntityCard compact loading={loading} />
+      <Slide
+        mountOnEnter
+        in={slideIn}
+        direction={slideDirection}
+        onEntered={onSlideEntered}
+        onExited={onSlideExited}
+        timeout={ENTITY_CARD_SWIPE_TIMEOUT}
+        appear={false}
+      >
+        <Box
+          {...bindDrag()}
+          sx={{ touchAction: 'none' }}
+          // "flex" properties allow the cards to be flexible and both cards to keep the same height.
+          // "position: relative" is required to correctly display the entity unavailable box.
+          display="flex"
+          flex={1}
+          position="relative"
+        >
+          {rating ? (
+            <EntityCard
+              compact
+              result={rating}
+              showRatingControl={showRatingControl}
+              onRatingChange={handleRatingUpdate}
+            ></EntityCard>
+          ) : (
+            <>
+              {(loading ||
+                !showEntityInput ||
+                entityAvailability === ENTITY_AVAILABILITY.UNAVAILABLE) && (
+                <EmptyEntityCard compact loading={loading} />
+              )}
+              {!loading &&
+                entityAvailability === ENTITY_AVAILABILITY.UNAVAILABLE && (
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    position="absolute"
+                    top="0"
+                    color="white"
+                    bgcolor="rgba(0,0,0,.6)"
+                    width="100%"
+                    sx={{
+                      aspectRatio: '16/9',
+                      [theme.breakpoints.down('sm')]: {
+                        fontSize: '0.8rem',
+                      },
+                    }}
+                  >
+                    <Typography textAlign="center" fontSize="inherit">
+                      {pollName === YOUTUBE_POLL_NAME
+                        ? t('entitySelector.youtubeVideoUnavailable')
+                        : t('entityCard.thisElementIsNotAvailable')}
+                    </Typography>
+                  </Box>
+                )}
+              <Grid
+                container
+                sx={{
+                  ...entityCardMainSx,
+                  display:
+                    uid ||
+                    loading ||
+                    !showEntityInput ||
+                    entityAvailability === ENTITY_AVAILABILITY.UNAVAILABLE
+                      ? 'none'
+                      : 'flex',
+                }}
+              >
+                <Grid
+                  container
+                  item
+                  xs={12}
+                  sx={{
+                    aspectRatio: '16 / 9',
+                    backgroundColor: '#fafafa',
+                  }}
+                  spacing={1}
+                  alignItems="center"
+                  justifyContent="space-around"
+                  wrap="wrap"
+                >
+                  <Grid container item xs={12} sm={5} justifyContent="center">
+                    <EntitySelectButton
+                      value={inputValue || uid || ''}
+                      onChange={handleChange}
+                      otherUid={otherUid}
+                      variant="full"
+                    />
+                  </Grid>
+                  <Grid container item xs={12} sm={5} justifyContent="center">
+                    <AutoEntityButton
+                      disabled={loading}
+                      onClick={slideUp}
+                      variant="full"
+                    />
+                  </Grid>
+                </Grid>
+              </Grid>
+            </>
+          )}
+        </Box>
+      </Slide>
+      {showEntityInput && smallScreen && (
+        <Box mt={1}>
+          <EntitySelectorControls
+            alignment={alignment}
+            uid={uid}
+            otherUid={otherUid}
+            inputValue={inputValue}
+            history={history}
+            disabled={loading}
+            onAutoClick={slideUp}
+            onEntitySelect={handleChange}
+            orderedCriteriaRated={orderedCriteriaRated}
+          />
+        </Box>
       )}
     </>
   );

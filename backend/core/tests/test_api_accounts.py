@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-from django.core.exceptions import ValidationError
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -9,12 +8,10 @@ from core.models.user import User
 from core.tests.factories.user import UserFactory
 
 
-class AccountsRegisterTestCase(TestCase):
+class AccountRegisterMixin:
     """
-    TestCase of the /accounts/register/ API.
-
-    Even if this API is provided by a third-party package, its default
-    behaviour has been customized, and thus needs to be tested.
+    A mixin that factorizes behaviours common to all account
+    registration test cases.
     """
 
     _existing_username = "existing"
@@ -25,10 +22,91 @@ class AccountsRegisterTestCase(TestCase):
     _non_existing_email = "non-existing@example.org"
 
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
         self.existing_user: User = UserFactory(
             username=self._existing_username, email=self._existing_email
         )
+
+
+class AccountRegisterUser(AccountRegisterMixin, TestCase):
+    """
+    TestCase of the /accounts/register/ API related to the user settings.
+    """
+    def test_register_account(self):
+        new_username = self._non_existing_username
+        new_email = self._non_existing_email
+
+        response = self.client.post(
+            "/accounts/register/",
+            data={
+                "username": new_username,
+                "email": new_email,
+                "password": "very_uncommon_pwd",
+                "password_confirm": "very_uncommon_pwd",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        response_data = response.json()
+        self.assertEqual(response_data["username"], new_username)
+        new_user = User.objects.get(username=new_username)
+        self.assertEqual(new_user.email, new_email)
+
+    def test_register_account_trust_score_read_only(self):
+        new_username = self._non_existing_username
+        new_email = self._non_existing_email
+        response = self.client.post(
+            "/accounts/register/",
+            data={
+                "username": new_username,
+                "email": new_email,
+                "password": "very_uncommon_pwd",
+                "password_confirm": "very_uncommon_pwd",
+                "trust_score": 0.99,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        response_data = response.json()
+        self.assertEqual(response_data["trust_score"], None)
+        new_user = User.objects.get(username=new_username)
+        self.assertEqual(new_user.trust_score, None)
+
+    def test_register_account_with_settings(self) -> None:
+        """
+        An anonymous user can define its settings during the registration.
+        """
+
+        user_settings = {
+            "general": {
+                "notifications_email__research": True,
+                "notifications_email__new_features": True,
+            }
+        }
+        # using a new email address is obviously valid
+        valid_payload = {
+            "username": self._non_existing_username,
+            "email": self._non_existing_email,
+            "password": "very_uncommon_pwd",
+            "password_confirm": "very_uncommon_pwd",
+            "settings": user_settings,
+        }
+        response = self.client.post(
+            "/accounts/register/",
+            valid_payload,
+            format="json",
+        )
+
+        new_user = User.objects.get(username=self._non_existing_username)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertDictEqual(new_user.settings, user_settings)
+
+
+class AccountsRegisterEmailTestCase(AccountRegisterMixin, TestCase):
+    """
+    TestCase of the /accounts/register/ API related to the emails.
+    """
 
     def test_register_account_with_already_used_email(self) -> None:
         """

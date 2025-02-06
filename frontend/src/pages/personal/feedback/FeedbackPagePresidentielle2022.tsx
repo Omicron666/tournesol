@@ -10,7 +10,7 @@ import {
   Grid,
   Typography,
 } from '@mui/material';
-import { LoaderWrapper } from 'src/components';
+import { ExternalLink, LoaderWrapper } from 'src/components';
 import StackedCandidatesPaper from 'src/features/feedback/StackedCandidatesPaper';
 import StackedCriteriaPaper from 'src/features/feedback/StackedCriteriaPaper';
 import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
@@ -21,7 +21,12 @@ import {
   PollCriteria,
   UsersService,
 } from 'src/services/openapi';
-import { getPollName, polls, YOUTUBE_POLL_NAME } from 'src/utils/constants';
+import {
+  getPollName,
+  polls,
+  PRESIDENTIELLE_2022_SURVEY_URL,
+  YOUTUBE_POLL_NAME,
+} from 'src/utils/constants';
 import { SelectablePoll } from 'src/utils/types';
 import ProofOfVote from './ProofOfVote';
 
@@ -150,7 +155,7 @@ const FeedbackPagePresidentielle2022 = () => {
               <Button
                 variant="contained"
                 component={RouterLink}
-                to={`${baseUrl}/comparison?series=true`}
+                to={`${baseUrl}/comparison`}
               >
                 {t('myFeedbackPage.presidentielle2022.continueComparisons')}
               </Button>
@@ -163,7 +168,17 @@ const FeedbackPagePresidentielle2022 = () => {
                 'myFeedbackPage.presidentielle2022.thanksForComparingCandidates'
               )}
             </Typography>
-            <ProofOfVote />
+            <ProofOfVote
+              label={t('myFeedbackPage.proofOfVote')}
+              helperText={
+                <Trans t={t} i18nKey="myFeedbackPage.proofOfVoteHelperText">
+                  This code will be helpful to complete{' '}
+                  <ExternalLink href={PRESIDENTIELLE_2022_SURVEY_URL}>
+                    our survey.
+                  </ExternalLink>
+                </Trans>
+              }
+            />
             <Typography paragraph textAlign="right">
               <Button
                 color="secondary"

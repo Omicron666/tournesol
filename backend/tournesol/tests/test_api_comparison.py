@@ -1,5 +1,6 @@
 import datetime
 from copy import deepcopy
+from unittest import skip
 from unittest.mock import patch
 
 from django.core.management import call_command
@@ -10,15 +11,18 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from core.tests.factories.user import UserFactory
-from core.utils.time import time_ago
+from core.utils.time import time_ago, time_ahead
 from tournesol.models import (
     Comparison,
+    ComparisonCriteriaScore,
     ContributorRatingCriteriaScore,
     Entity,
     EntityCriteriaScore,
+    EntityPollRating,
     Poll,
     RateLater,
 )
+from tournesol.models.entity_context import EntityContext, EntityContextLocale
 from tournesol.models.poll import ALGORITHM_MEHESTAN
 from tournesol.tests.factories.comparison import ComparisonCriteriaScoreFactory, ComparisonFactory
 from tournesol.tests.factories.entity import VideoFactory
@@ -53,7 +57,7 @@ class ComparisonApiTestCase(TestCase):
         "entity_a": {"uid": _uid_01},
         "entity_b": {"uid": _uid_03},
         "criteria_scores": [
-            {"criteria": "largely_recommended", "score": 10, "weight": 10}
+            {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
         ],
         "duration_ms": 103,
     }
@@ -65,9 +69,7 @@ class ComparisonApiTestCase(TestCase):
         At least 4 videos and 2 users with 2 comparisons each are required.
         """
         self.poll_videos = Poll.default_poll()
-        self.comparisons_base_url = "/users/me/comparisons/{}".format(
-            self.poll_videos.name
-        )
+        self.comparisons_base_url = "/users/me/comparisons/{}".format(self.poll_videos.name)
 
         self.client = APIClient()
 
@@ -76,10 +78,10 @@ class ComparisonApiTestCase(TestCase):
         now = datetime.datetime.now()
 
         self.videos = [
-            VideoFactory(metadata__video_id=self._uid_01.split(":")[1]),
-            VideoFactory(metadata__video_id=self._uid_02.split(":")[1]),
-            VideoFactory(metadata__video_id=self._uid_03.split(":")[1]),
-            VideoFactory(metadata__video_id=self._uid_04.split(":")[1]),
+            VideoFactory(metadata__video_id=self._uid_01.split(":")[1], make_safe_for_poll=False),
+            VideoFactory(metadata__video_id=self._uid_02.split(":")[1], make_safe_for_poll=False),
+            VideoFactory(metadata__video_id=self._uid_03.split(":")[1], make_safe_for_poll=False),
+            VideoFactory(metadata__video_id=self._uid_04.split(":")[1], make_safe_for_poll=False),
         ]
 
         self.comparisons = [
@@ -96,7 +98,7 @@ class ComparisonApiTestCase(TestCase):
                 entity_1=self.videos[0],
                 entity_2=self.videos[3],
                 duration_ms=104,
-                datetime_lastedit=now + datetime.timedelta(minutes=1),
+                datetime_lastedit=time_ahead(minutes=1),
             ),
             # "other" will have the comparisons: 03 / 02 and 03 / 04
             ComparisonFactory(
@@ -104,16 +106,31 @@ class ComparisonApiTestCase(TestCase):
                 entity_1=self.videos[2],
                 entity_2=self.videos[1],
                 duration_ms=302,
-                datetime_lastedit=now + datetime.timedelta(minutes=3),
+                datetime_lastedit=time_ahead(minutes=3),
             ),
             ComparisonFactory(
                 user=self.other,
                 entity_1=self.videos[2],
                 entity_2=self.videos[3],
                 duration_ms=304,
-                datetime_lastedit=now + datetime.timedelta(minutes=2),
+                datetime_lastedit=time_ahead(minutes=2),
             ),
         ]
+
+        self.ent_context_01 = EntityContext.objects.create(
+            name="context_safe",
+            origin=EntityContext.ASSOCIATION,
+            predicate={"video_id": self.videos[0].metadata["video_id"]},
+            unsafe=False,
+            enabled=True,
+            poll=self.poll_videos,
+        )
+
+        self.ent_context_01_text = EntityContextLocale.objects.create(
+            context=self.ent_context_01,
+            language="en",
+            text="Hello context",
+        )
 
     def _remove_optional_fields(self, comparison):
         comparison.pop("duration_ms", None)
@@ -123,6 +140,25 @@ class ComparisonApiTestCase(TestCase):
                 criteria_score.pop("weight", None)
 
         return comparison
+
+    def _compare(self, uid_1, uid_2):
+        self.client.post(
+            self.comparisons_base_url,
+            {
+                "entity_a": {"uid": uid_1},
+                "entity_b": {"uid": uid_2},
+                "criteria_scores": [
+                    {
+                        "criteria": "largely_recommended",
+                        "score": 10,
+                        "score_max": 10,
+                        "weight": 10,
+                    }
+                ],
+                "duration_ms": 103,
+            },
+            format="json",
+        )
 
     def test_anonymous_cant_create(self):
         """
@@ -230,28 +266,28 @@ class ComparisonApiTestCase(TestCase):
         self.assertEqual(comparison.duration_ms, data["duration_ms"])
 
         comparison_criteria_scores = comparison.criteria_scores.all()
-        self.assertEqual(
-            comparison_criteria_scores.count(), len(data["criteria_scores"])
-        )
+        self.assertEqual(comparison_criteria_scores.count(), len(data["criteria_scores"]))
         self.assertEqual(
             comparison_criteria_scores[0].criteria,
             data["criteria_scores"][0]["criteria"],
         )
-        self.assertEqual(
-            comparison_criteria_scores[0].score, data["criteria_scores"][0]["score"]
-        )
+        self.assertEqual(comparison_criteria_scores[0].score, data["criteria_scores"][0]["score"])
         self.assertEqual(
             comparison_criteria_scores[0].weight, data["criteria_scores"][0]["weight"]
         )
 
         # check the representation integrity
-        self.assertEqual(response.data["entity_a"]["uid"], data["entity_a"]["uid"])
-        self.assertEqual(response.data["entity_b"]["uid"], data["entity_b"]["uid"])
-        self.assertEqual(response.data["duration_ms"], data["duration_ms"])
+        resp_data = response.data
+        self.assertEqual(resp_data["entity_a"]["uid"], data["entity_a"]["uid"])
+        self.assertEqual(resp_data["entity_b"]["uid"], data["entity_b"]["uid"])
 
-        self.assertEqual(
-            len(response.data["criteria_scores"]), len(data["criteria_scores"])
-        )
+        self.assertEqual(len(resp_data["entity_a_contexts"]), 1)
+        self.assertEqual(resp_data["entity_a_contexts"][0]["text"], self.ent_context_01_text.text)
+        self.assertEqual(resp_data["entity_b_contexts"], [])
+
+        self.assertEqual(resp_data["duration_ms"], data["duration_ms"])
+
+        self.assertEqual(len(response.data["criteria_scores"]), len(data["criteria_scores"]))
         self.assertEqual(
             response.data["criteria_scores"][0]["criteria"],
             data["criteria_scores"][0]["criteria"],
@@ -264,6 +300,61 @@ class ComparisonApiTestCase(TestCase):
             response.data["criteria_scores"][0]["weight"],
             data["criteria_scores"][0]["weight"],
         )
+
+    def test_creating_comparison_updates_the_ratings(self):
+        """
+        Ensure the `EntityPollRating`s are automatically created after each
+        comparison.
+
+        Also ensure these `EntityPollRating`s are updated if they already
+        exist.
+        """
+        data = deepcopy(self.non_existing_comparison)
+        self.client.force_authenticate(user=self.user)
+
+        # Make sure `EntityPollRating`s don't exist yet.
+        EntityPollRating.objects.filter(
+            entity__uid__in=[
+                self.non_existing_comparison["entity_a"]["uid"],
+                self.non_existing_comparison["entity_b"]["uid"],
+            ]
+        ).delete()
+
+        self.client.post(
+            self.comparisons_base_url,
+            data,
+            format="json",
+        )
+
+        # The `EntityPollRating`s have been created.
+        rating_a = EntityPollRating.objects.get(
+            entity__uid=self.non_existing_comparison["entity_a"]["uid"]
+        )
+
+        rating_b = EntityPollRating.objects.get(
+            entity__uid=self.non_existing_comparison["entity_b"]["uid"]
+        )
+
+        self.assertEqual(rating_a.n_comparisons, 3)
+        self.assertEqual(rating_a.n_contributors, 1)
+        self.assertEqual(rating_b.n_comparisons, 3)
+        self.assertEqual(rating_b.n_contributors, 2)
+
+        self.client.force_authenticate(user=self.other)
+        self.client.post(
+            self.comparisons_base_url,
+            data,
+            format="json",
+        )
+
+        rating_a.refresh_from_db()
+        rating_b.refresh_from_db()
+
+        # The `EntityPollRating`s have been updated.
+        self.assertEqual(rating_a.n_comparisons, 4)
+        self.assertEqual(rating_a.n_contributors, 2)
+        self.assertEqual(rating_b.n_comparisons, 4)
+        self.assertEqual(rating_b.n_contributors, 2)
 
     def test_authenticated_can_create_without_optional(self):
         """
@@ -306,12 +397,10 @@ class ComparisonApiTestCase(TestCase):
         )
 
         comparison_criteria_scores = comparison.criteria_scores.all()
-        self.assertEqual(
-            comparison_criteria_scores.count(), len(data["criteria_scores"])
-        )
+        self.assertEqual(comparison_criteria_scores.count(), len(data["criteria_scores"]))
         self.assertEqual(comparison_criteria_scores[0].weight, 1)
 
-    @patch('tournesol.utils.api_youtube.YOUTUBE', None)
+    @override_settings(YOUTUBE_API_KEY=None)
     def test_authenticated_can_create_with_non_existing_entity(self):
         """
         An authenticated user can create a comparison involving entities that
@@ -488,6 +577,28 @@ class ComparisonApiTestCase(TestCase):
             initial_comparisons_nbr + 1,
         )
 
+    def test_authenticated_cant_create_invalid_score_max(self):
+        """
+        An authenticated user can't create a comparison with a criterion whose
+        score is higher than score_max.
+        """
+        initial_comparisons_nbr = Comparison.objects.all().count()
+        data = deepcopy(self.non_existing_comparison)
+        data["criteria_scores"][0]["score"] = 10
+        data["criteria_scores"][0]["score_max"] = 5
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            self.comparisons_base_url,
+            data,
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            Comparison.objects.all().count(),
+            initial_comparisons_nbr,
+        )
+
     def test_anonymous_cant_list(self):
         """
         An anonymous user can't list its comparisons.
@@ -529,24 +640,21 @@ class ComparisonApiTestCase(TestCase):
         self.assertEqual(len(response.data["results"]), comparisons_made.count())
 
         # the comparisons must be ordered by datetime_lastedit
-        comparison1 = response.data["results"][0]
-        comparison2 = response.data["results"][1]
+        results = response.data["results"]
+        comp1 = results[0]
+        comp2 = results[1]
 
-        self.assertEqual(
-            comparison1["entity_a"]["uid"], self.comparisons[1].entity_1.uid
-        )
-        self.assertEqual(
-            comparison1["entity_b"]["uid"], self.comparisons[1].entity_2.uid
-        )
-        self.assertEqual(comparison1["duration_ms"], self.comparisons[1].duration_ms)
+        self.assertEqual(comp1["entity_a"]["uid"], self.comparisons[1].entity_1.uid)
+        self.assertEqual(comp1["entity_b"]["uid"], self.comparisons[1].entity_2.uid)
+        self.assertEqual(comp1["duration_ms"], self.comparisons[1].duration_ms)
 
-        self.assertEqual(
-            comparison2["entity_a"]["uid"], self.comparisons[0].entity_1.uid
-        )
-        self.assertEqual(
-            comparison2["entity_b"]["uid"], self.comparisons[0].entity_2.uid
-        )
-        self.assertEqual(comparison2["duration_ms"], self.comparisons[0].duration_ms)
+        self.assertEqual(comp2["entity_a"]["uid"], self.comparisons[0].entity_1.uid)
+        self.assertEqual(comp2["entity_b"]["uid"], self.comparisons[0].entity_2.uid)
+
+        self.assertEqual(len(comp1["entity_a_contexts"]), 1)
+        self.assertEqual(comp1["entity_a_contexts"][0]["text"], self.ent_context_01_text.text)
+        self.assertEqual(comp1["entity_b_contexts"], [])
+        self.assertEqual(comp2["duration_ms"], self.comparisons[0].duration_ms)
 
     def test_authenticated_can_list_filtered(self):
         """
@@ -619,9 +727,13 @@ class ComparisonApiTestCase(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(response.data["entity_a"]["uid"], self._uid_01)
-        self.assertEqual(response.data["entity_b"]["uid"], self._uid_02)
-        self.assertEqual(response.data["duration_ms"], 102)
+        data = response.data
+        self.assertEqual(data["entity_a"]["uid"], self._uid_01)
+        self.assertEqual(data["entity_b"]["uid"], self._uid_02)
+        self.assertEqual(len(data["entity_a_contexts"]), 1)
+        self.assertEqual(data["entity_a_contexts"][0]["text"], self.ent_context_01_text.text)
+        self.assertEqual(data["entity_b_contexts"], [])
+        self.assertEqual(data["duration_ms"], 102)
 
     def test_authenticated_can_read_reverse(self):
         """
@@ -651,10 +763,15 @@ class ComparisonApiTestCase(TestCase):
             ),
             format="json",
         )
+
+        data = response.data
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["entity_a"]["uid"], self._uid_02)
-        self.assertEqual(response.data["entity_b"]["uid"], self._uid_01)
-        self.assertEqual(response.data["duration_ms"], 102)
+        self.assertEqual(data["entity_a"]["uid"], self._uid_02)
+        self.assertEqual(data["entity_b"]["uid"], self._uid_01)
+        self.assertEqual(data["entity_a_contexts"], [])
+        self.assertEqual(len(data["entity_b_contexts"]), 1)
+        self.assertEqual(data["entity_b_contexts"][0]["text"], self.ent_context_01_text.text)
+        self.assertEqual(data["duration_ms"], 102)
 
     def test_anonymous_cant_update(self):
         """
@@ -668,7 +785,7 @@ class ComparisonApiTestCase(TestCase):
             ),
             {
                 "criteria_scores": [
-                    {"criteria": "largely_recommended", "score": 10, "weight": 10}
+                    {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
                 ]
             },
             format="json",
@@ -688,12 +805,320 @@ class ComparisonApiTestCase(TestCase):
             ),
             {
                 "criteria_scores": [
-                    {"criteria": "largely_recommended", "score": 10, "weight": 10}
+                    {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
                 ]
             },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_authenticated_can_update(self):
+        self.client.force_authenticate(user=self.user)
+
+        ent_context = EntityContext.objects.create(
+            name="context_safe_03",
+            origin=EntityContext.ASSOCIATION,
+            predicate={"video_id": self.videos[2].metadata["video_id"]},
+            unsafe=False,
+            enabled=True,
+            poll=self.poll_videos,
+        )
+
+        ent_context_text = EntityContextLocale.objects.create(
+            context=ent_context,
+            language="en",
+            text="Hello context 03",
+        )
+
+        comparison1 = Comparison.objects.create(
+            poll=self.poll_videos,
+            user=self.user,
+            entity_1=self.videos[2],
+            entity_2=self.videos[3],
+        )
+        comparison2 = Comparison.objects.create(
+            poll=self.poll_videos,
+            user=self.user,
+            entity_1=self.videos[1],
+            entity_2=self.videos[2],
+        )
+        response = self.client.put(
+            "{}/{}/{}/".format(
+                self.comparisons_base_url,
+                self._uid_03,
+                self._uid_04,
+            ),
+            {
+                "criteria_scores": [
+                    {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
+                ]
+            },
+            format="json",
+        )
+
+        data = response.data
+        self.assertEqual(len(data["entity_a_contexts"]), 1)
+        self.assertEqual(data["entity_a_contexts"][0]["text"], ent_context_text.text)
+        self.assertEqual(data["entity_b_contexts"], [])
+
+        response = self.client.get(
+            self.comparisons_base_url,
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        comp1 = response.data["results"][0]
+        comp2 = response.data["results"][1]
+        self.assertEqual(comp1["entity_a"]["uid"], comparison1.entity_1.uid)
+        self.assertEqual(comp1["entity_b"]["uid"], comparison1.entity_2.uid)
+        self.assertEqual(comp2["entity_a"]["uid"], comparison2.entity_1.uid)
+        self.assertEqual(comp2["entity_b"]["uid"], comparison2.entity_2.uid)
+
+    def test_anonymous_cant_patch(self):
+        score = ComparisonCriteriaScore.objects.create(
+            comparison=self.comparisons[0],
+            criteria="largely_recommended",
+            score=8,
+            score_max=10,
+        )
+
+        response = self.client.patch(
+            "{}/{}/{}/".format(
+                self.comparisons_base_url,
+                self._uid_01,
+                self._uid_02,
+            ),
+            data={
+                "criteria_scores": [
+                    {
+                        "criteria": "largely_recommended",
+                        "score": 2,
+                        "score_max": 2,
+                    }
+                ]
+            },
+            format="json",
+        )
+
+        score.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(score.score, 8)
+        self.assertEqual(score.score_max, 10)
+
+    def test_authenticated_can_patch(self):
+        """
+        An authenticated user can patch the score and the score_max of the
+        main criterion.
+        """
+        self.client.force_authenticate(user=self.user)
+        self.comparisons[0].criteria_scores.all().delete()
+
+        ComparisonCriteriaScore.objects.create(
+            comparison=self.comparisons[0],
+            criteria="largely_recommended",
+            score=8,
+            score_max=10,
+        )
+
+        response = self.client.patch(
+            "{}/{}/{}/".format(
+                self.comparisons_base_url,
+                self._uid_01,
+                self._uid_02,
+            ),
+            data={
+                "criteria_scores": [
+                    {
+                        "criteria": "largely_recommended",
+                        "score": 2,
+                        "score_max": 2,
+                    }
+                ]
+            },
+            format="json",
+        )
+
+        criteria_scores = response.data["criteria_scores"]
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertListEqual(
+            criteria_scores,
+            [
+                {"criteria": "largely_recommended", "score": 2.0, "score_max": 2, "weight": 1.0},
+            ],
+        )
+
+    def test_authenticated_can_patch_optional(self):
+        """
+        An authenticated user can patch the score and the score_max of an
+        optional criterion.
+        """
+        self.client.force_authenticate(user=self.user)
+        self.comparisons[0].criteria_scores.all().delete()
+
+        optional = "pedagogy"
+        ComparisonCriteriaScore.objects.create(
+            comparison=self.comparisons[0],
+            criteria="largely_recommended",
+            score=1,
+            score_max=10,
+        )
+        ComparisonCriteriaScore.objects.create(
+            comparison=self.comparisons[0],
+            criteria="reliability",
+            score=2,
+            score_max=10,
+        )
+
+        # A new criterion can be added, without erasing all existing criteria.
+        response = self.client.patch(
+            "{}/{}/{}/".format(
+                self.comparisons_base_url,
+                self._uid_01,
+                self._uid_02,
+            ),
+            data={
+                "criteria_scores": [
+                    {
+                        "criteria": optional,
+                        "score": 3,
+                        "score_max": 8,
+                    }
+                ]
+            },
+            format="json",
+        )
+
+        criteria_scores = response.data["criteria_scores"]
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertListEqual(
+            criteria_scores,
+            [
+                {"criteria": "largely_recommended", "score": 1.0, "score_max": 10, "weight": 1.0},
+                {"criteria": "reliability", "score": 2.0, "score_max": 10, "weight": 1.0},
+                {"criteria": "pedagogy", "score": 3.0, "score_max": 8, "weight": 1.0},
+            ],
+        )
+
+        # An existing criterion can be updated, without affecting all existing criteria.
+        response = self.client.patch(
+            "{}/{}/{}/".format(
+                self.comparisons_base_url,
+                self._uid_01,
+                self._uid_02,
+            ),
+            data={
+                "criteria_scores": [
+                    {
+                        "criteria": optional,
+                        "score": 4,
+                        "score_max": 8,
+                    }
+                ]
+            },
+            format="json",
+        )
+
+        criteria_scores = response.data["criteria_scores"]
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertListEqual(
+            criteria_scores,
+            [
+                {"criteria": "largely_recommended", "score": 1.0, "score_max": 10, "weight": 1.0},
+                {"criteria": "reliability", "score": 2.0, "score_max": 10, "weight": 1.0},
+                {"criteria": "pedagogy", "score": 4.0, "score_max": 8, "weight": 1.0},
+            ],
+        )
+
+    def test_authenticated_can_patch_several(self):
+        """
+        An authenticated user can patch the score and the score_max of several
+        criteria at a time.
+        """
+        self.client.force_authenticate(user=self.user)
+        self.comparisons[0].criteria_scores.all().delete()
+
+        ComparisonCriteriaScore.objects.create(
+            comparison=self.comparisons[0],
+            criteria="largely_recommended",
+            score=1,
+            score_max=10,
+        )
+        ComparisonCriteriaScore.objects.create(
+            comparison=self.comparisons[0],
+            criteria="reliability",
+            score=2,
+            score_max=10,
+        )
+
+        # A new criterion can be added, without erasing all existing criteria.
+        response = self.client.patch(
+            "{}/{}/{}/".format(
+                self.comparisons_base_url,
+                self._uid_01,
+                self._uid_02,
+            ),
+            data={
+                "criteria_scores": [
+                    {
+                        "criteria": "reliability",
+                        "score": 4,
+                        "score_max": 8,
+                    },
+                    {
+                        "criteria": "pedagogy",
+                        "score": 5,
+                        "score_max": 9,
+                    },
+                ]
+            },
+            format="json",
+        )
+
+        criteria_scores = response.data["criteria_scores"]
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertListEqual(
+            criteria_scores,
+            [
+                {"criteria": "largely_recommended", "score": 1.0, "score_max": 10, "weight": 1.0},
+                {"criteria": "reliability", "score": 4.0, "score_max": 8, "weight": 1.0},
+                {"criteria": "pedagogy", "score": 5.0, "score_max": 9, "weight": 1.0},
+            ],
+        )
+
+    def test_authenticated_cant_patch_invalid_score_max(self):
+        """
+        An authenticated user can't patch the score of a criterion with a
+        value higher than score_max.
+        """
+        self.client.force_authenticate(user=self.user)
+        self.comparisons[0].criteria_scores.all().delete()
+
+        ComparisonCriteriaScore.objects.create(
+            comparison=self.comparisons[0],
+            criteria="largely_recommended",
+            score=8,
+            score_max=10,
+        )
+
+        response = self.client.patch(
+            "{}/{}/{}/".format(
+                self.comparisons_base_url,
+                self._uid_01,
+                self._uid_02,
+            ),
+            data={
+                "criteria_scores": [
+                    {
+                        "criteria": "largely_recommended",
+                        "score": 10,
+                        "score_max": 8,
+                    }
+                ]
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_anonymous_cant_delete(self):
         """
@@ -773,54 +1198,6 @@ class ComparisonApiTestCase(TestCase):
                 entity_2=self.videos[1],
             )
 
-    def test_authenticated_integrated_comparison_list(self):
-        self.client.force_authenticate(user=self.user)
-        comparison1 = Comparison.objects.create(
-            poll=self.poll_videos,
-            user=self.user,
-            entity_1=self.videos[2],
-            entity_2=self.videos[3],
-        )
-        comparison2 = Comparison.objects.create(
-            poll=self.poll_videos,
-            user=self.user,
-            entity_1=self.videos[1],
-            entity_2=self.videos[2],
-        )
-        self.client.put(
-            "{}/{}/{}/".format(
-                self.comparisons_base_url,
-                self._uid_03,
-                self._uid_04,
-            ),
-            {
-                "criteria_scores": [
-                    {"criteria": "largely_recommended", "score": 10, "weight": 10}
-                ]
-            },
-            format="json",
-        )
-        response = self.client.get(
-            self.comparisons_base_url,
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        result_comparison1 = response.data["results"][0]
-        result_comparison2 = response.data["results"][1]
-        self.assertEqual(
-            result_comparison1["entity_a"]["uid"], comparison1.entity_1.uid
-        )
-        self.assertEqual(
-            result_comparison1["entity_b"]["uid"], comparison1.entity_2.uid
-        )
-        self.assertEqual(
-            result_comparison2["entity_a"]["uid"], comparison2.entity_1.uid
-        )
-        self.assertEqual(
-            result_comparison2["entity_b"]["uid"], comparison2.entity_2.uid
-        )
-
     def test_n_ratings_from_video(self):
         self.client.force_authenticate(user=self.user)
 
@@ -832,7 +1209,7 @@ class ComparisonApiTestCase(TestCase):
             "entity_a": {"uid": self._uid_05},
             "entity_b": {"uid": self._uid_06},
             "criteria_scores": [
-                {"criteria": "largely_recommended", "score": 10, "weight": 10}
+                {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
             ],
             "duration_ms": 103,
         }
@@ -847,7 +1224,7 @@ class ComparisonApiTestCase(TestCase):
             "entity_a": {"uid": self._uid_05},
             "entity_b": {"uid": self._uid_07},
             "criteria_scores": [
-                {"criteria": "largely_recommended", "score": 10, "weight": 10}
+                {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
             ],
             "duration_ms": 103,
         }
@@ -864,7 +1241,7 @@ class ComparisonApiTestCase(TestCase):
             "entity_a": {"uid": self._uid_05},
             "entity_b": {"uid": self._uid_06},
             "criteria_scores": [
-                {"criteria": "largely_recommended", "score": 10, "weight": 10}
+                {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
             ],
             "duration_ms": 103,
         }
@@ -879,18 +1256,16 @@ class ComparisonApiTestCase(TestCase):
         video6 = Entity.objects.get(uid=self._uid_06)
         video7 = Entity.objects.get(uid=self._uid_07)
 
-        self.assertEqual(video5.rating_n_contributors, 2)
-        self.assertEqual(video5.rating_n_ratings, 3)
-        self.assertEqual(video6.rating_n_contributors, 2)
-        self.assertEqual(video6.rating_n_ratings, 2)
-        self.assertEqual(video7.rating_n_contributors, 1)
-        self.assertEqual(video7.rating_n_ratings, 1)
+        self.assertEqual(video5.all_poll_ratings.get().n_contributors, 2)
+        self.assertEqual(video5.all_poll_ratings.get().n_comparisons, 3)
+        self.assertEqual(video6.all_poll_ratings.get().n_contributors, 2)
+        self.assertEqual(video6.all_poll_ratings.get().n_comparisons, 2)
+        self.assertEqual(video7.all_poll_ratings.get().n_contributors, 1)
+        self.assertEqual(video7.all_poll_ratings.get().n_comparisons, 1)
 
     @patch("tournesol.utils.api_youtube.get_video_metadata")
     def test_metadata_refresh_on_comparison_creation(self, mock_get_video_metadata):
-        mock_get_video_metadata.return_value = {
-            "views": "42000"
-        }
+        mock_get_video_metadata.return_value = {"views": "42000"}
 
         user = UserFactory(username="non_existing_user")
         self.client.force_authenticate(user=user)
@@ -907,7 +1282,7 @@ class ComparisonApiTestCase(TestCase):
             "entity_a": {"uid": self._uid_01},
             "entity_b": {"uid": self._uid_02},
             "criteria_scores": [
-                {"criteria": "largely_recommended", "score": 10, "weight": 10}
+                {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
             ],
         }
         response = self.client.post(self.comparisons_base_url, data, format="json")
@@ -920,7 +1295,7 @@ class ComparisonApiTestCase(TestCase):
             "entity_a": {"uid": self._uid_01},
             "entity_b": {"uid": self._uid_03},
             "criteria_scores": [
-                {"criteria": "largely_recommended", "score": 10, "weight": 10}
+                {"criteria": "largely_recommended", "score": 10, "score_max": 10, "weight": 10}
             ],
         }
 
@@ -941,24 +1316,19 @@ class ComparisonApiTestCase(TestCase):
 
     def test_comparing_removes_from_rate_later(self):
         """
-        Comparing a video multiple time removes it from the rate later list
+        A video compared several times should be removed from the user's
+        rate-later list.
+
+        If the user hasn't configured `rate_later__auto_remove`, the video
+        should be removed after 4 comparisons.
         """
+
+        # [GIVEN] a user with no settings configured.
+        self.user.settings = {}
+        self.user.save(update_fields=["settings"])
+
         self.client.force_authenticate(user=self.user)
         video_main, *videos = (VideoFactory() for _ in range(5))
-
-        def compare(uid_1, uid_2):
-            response = self.client.post(
-                self.comparisons_base_url,
-                {
-                    "entity_a": {"uid": uid_1},
-                    "entity_b": {"uid": uid_2},
-                    "criteria_scores": [
-                        {"criteria": "largely_recommended", "score": 10, "weight": 10}
-                    ],
-                    "duration_ms": 103,
-                },
-                format="json",
-            )
 
         data = {"entity": {"uid": video_main.uid}}
         self.client.post(
@@ -966,12 +1336,14 @@ class ComparisonApiTestCase(TestCase):
             data,
             format="json",
         )
-        compare(video_main.uid, videos[0].uid)
-        # Video main should still be in the rate later list
+
+        # The main video should be in the rate later list after 1 comparison.
+        self._compare(video_main.uid, videos[0].uid)
         self.assertEqual(RateLater.objects.filter(entity=video_main).count(), 1)
+
+        # The main video should not be in the rate later list after 4 comparison.
         for video in videos[1:]:
-            compare(video_main.uid, video.uid)
-        # Video main should not be in the rate later list after >= 4 comparisons
+            self._compare(video_main.uid, video.uid)
         self.assertEqual(RateLater.objects.filter(entity=video_main).count(), 0)
 
 
@@ -1000,7 +1372,11 @@ class ComparisonWithMehestanTest(TransactionTestCase):
 
         self.client = APIClient()
 
-    @override_settings(UPDATE_MEHESTAN_SCORES_ON_COMPARISON=True)
+    @skip("Online updates not implemented in Solidago")
+    @override_settings(
+        UPDATE_MEHESTAN_SCORES_ON_COMPARISON=True,
+        MEHESTAN_MULTIPROCESSING=False,
+    )
     def test_update_individual_scores_after_new_comparison(self):
         call_command("ml_train")
 
@@ -1019,18 +1395,9 @@ class ComparisonWithMehestanTest(TransactionTestCase):
         resp = self.client.post(
             f"/users/me/comparisons/{self.poll.name}",
             data={
-                "entity_a": {
-                    "uid": self.entities[0].uid
-                },
-                "entity_b": {
-                    "uid": self.entities[2].uid
-                },
-                "criteria_scores": [
-                    {
-                        "criteria": "criteria1",
-                        "score": 3
-                    }
-                ]
+                "entity_a": {"uid": self.entities[0].uid},
+                "entity_b": {"uid": self.entities[2].uid},
+                "criteria_scores": [{"criteria": "criteria1", "score": 3, "score_max": 10}],
             },
             format="json",
         )

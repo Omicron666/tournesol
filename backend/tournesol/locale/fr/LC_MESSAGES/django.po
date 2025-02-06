@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-10-12 20:22+0000\n"
+"POT-Creation-Date: 2024-11-14 15:16+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,15 +18,48 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-#: tournesol/admin.py:94
+#: tournesol/admin.py:90
 #, python-format
 msgid "Successfully refreshed the metadata of %(count)s entities."
 msgstr "Les métadonnées de %(count)s entités ont été mises à jour."
 
-#: tournesol/serializers/rate_later.py:31
+#: tournesol/admin.py:294
+msgid "score max"
+msgstr "score max"
+
+#: tournesol/admin.py:393
+msgid "has text?"
+msgstr "contient du texte?"
+
+#: tournesol/admin.py:398
+msgid "Yes"
+msgstr "Oui"
+
+#: tournesol/admin.py:399
+msgid "No"
+msgstr "Non"
+
+#: tournesol/models/comparisons.py:155
+msgid "The value of score_max cannot be None."
+msgstr "La valeur de score_max ne peut pas être None."
+
+#: tournesol/models/comparisons.py:158
+msgid "The value of score_max must be greater than or equal to 1."
+msgstr "La valeur de score_max doit être supérieure ou égale à 1."
+
+#: tournesol/models/comparisons.py:163
+#, python-format
+msgid ""
+"The absolute value of the score %(score)s given to the criterion "
+"%(criterion)s can't be greater than the value of score_max %(score_max)s."
+msgstr ""
+"La valeur absolue du score %(score)s donnée au critère %(criterion)s ne peut "
+"pas être supérieure à la valeur de score_max %(score_max)s."
+
+#: tournesol/serializers/rate_later.py:60
 msgid "The entity is already in the rate-later list of this poll."
 msgstr "L'entité est déjà dans la liste à comparer plus tard de ce scrutin."
 
-#: tournesol/views/comparison.py:21
+#: tournesol/views/comparison.py:20
 msgid "This action is not allowed on an inactive poll."
 msgstr "Cette action n'est pas permise dans un scrutin inactif."

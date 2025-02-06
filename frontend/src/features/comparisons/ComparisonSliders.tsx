@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useSelector } from 'react-redux';
+
 import makeStyles from '@mui/styles/makeStyles';
 import { Box, Button, Collapse, Typography } from '@mui/material';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import { Info as InfoIcon } from '@mui/icons-material';
-import { useTranslation } from 'react-i18next';
 
 import type {
   ComparisonRequest,
   ComparisonCriteriaScore,
+  PollCriteria,
 } from 'src/services/openapi';
-
-import CriteriaSlider from './CriteriaSlider';
+import { selectSettings } from 'src/features/settings/userSettingsSlice';
+import StatsContext from 'src/features/statistics/StatsContext';
 import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
 import {
   clearPendingRating,
@@ -19,6 +22,8 @@ import {
   resetPendingRatings,
 } from 'src/utils/comparison/pending';
 import { CriteriaValuesType } from 'src/utils/types';
+import CriteriaSlider, { SLIDER_SCORE_MAX } from './CriteriaSlider';
+import ItemsAreSimilar from './ItemsAreSimilar';
 
 const useStyles = makeStyles(() => ({
   root: {
@@ -36,28 +41,47 @@ const useStyles = makeStyles(() => ({
   },
 }));
 
+/**
+ * A criterion can be considered "collapsed" if:
+ *  - it is configured optional in the poll
+ *  - the user haven't marked it as always displayed
+ */
+const isCollapsed = (
+  criterion: PollCriteria | undefined,
+  userPreferences: string[] | undefined
+) => {
+  return criterion?.optional && !userPreferences?.includes(criterion.name);
+};
+
 const ComparisonSliders = ({
   submit,
   initialComparison,
   uidA,
   uidB,
   isComparisonPublic,
+  readOnly = false,
 }: {
   submit: (c: ComparisonRequest) => Promise<void>;
   initialComparison: ComparisonRequest | null;
   uidA: string;
   uidB: string;
   isComparisonPublic?: boolean;
+  readOnly?: boolean;
 }) => {
   const classes = useStyles();
-
   const { t } = useTranslation();
+
   const {
     criteriaByName,
     criterias,
     name: pollName,
     active: isPollActive,
   } = useCurrentPoll();
+
+  const { refreshStats } = useContext(StatsContext);
+
+  const userSettings = useSelector(selectSettings)?.settings;
+  const critAlwaysDisplayed = userSettings.videos?.comparison__criteria_order;
 
   const isMounted = useRef(true);
   const [disableSubmit, setDisableSubmit] = useState(false);
@@ -74,10 +98,15 @@ const ComparisonSliders = ({
       entity_a: { uid: uidA },
       entity_b: { uid: uidB },
       criteria_scores: criterias
-        .filter((c) => !c.optional)
-        .map((c) => ({ criteria: c.name, score: pendingRatings[c.name] || 0 })),
+        .filter((c) => !c.optional || critAlwaysDisplayed?.includes(c.name))
+        .map((c) => ({
+          criteria: c.name,
+          score: pendingRatings[c.name] || 0,
+          score_max: SLIDER_SCORE_MAX,
+        })),
     };
   };
+
   const [comparison, setComparison] = useState<ComparisonRequest>(
     castToComparison(initialComparison, {})
   );
@@ -123,6 +152,7 @@ const ComparisonSliders = ({
       await submit(comparison);
     } finally {
       setDisableSubmit(false);
+      refreshStats(pollName);
     }
 
     // avoid a "memory leak" warning if the component is unmounted on submit.
@@ -131,7 +161,11 @@ const ComparisonSliders = ({
     }
   };
 
-  const handleSliderChange = (criteria: string, score: number | undefined) => {
+  const handleSliderChange = (
+    criteria: string,
+    score: number | undefined,
+    scoreMax: number
+  ) => {
     const cs = comparison.criteria_scores.find((c) => c.criteria === criteria);
     if (score === undefined) {
       comparison.criteria_scores = comparison.criteria_scores.filter(
@@ -140,8 +174,14 @@ const ComparisonSliders = ({
     } else if (cs) {
       if (cs.score == score) return;
       cs.score = score;
+      cs.score_max = scoreMax;
     } else {
-      comparison.criteria_scores.push({ criteria, score, weight: 1 });
+      comparison.criteria_scores.push({
+        criteria,
+        score,
+        score_max: scoreMax,
+        weight: 1,
+      });
     }
 
     clearPendingRating(pollName, uidA, uidB, criteria);
@@ -149,27 +189,25 @@ const ComparisonSliders = ({
   };
 
   const showOptionalCriterias = comparison.criteria_scores.some(
-    ({ criteria }) => criteriaByName[criteria]?.optional
+    ({ criteria }) => isCollapsed(criteriaByName[criteria], critAlwaysDisplayed)
   );
 
   const handleCollapseCriterias = () => {
     const optionalCriteriasKeys = criterias
-      .filter((c) => c.optional)
+      .filter((c) => isCollapsed(c, critAlwaysDisplayed))
       .map((c) => c.name);
+
     optionalCriteriasKeys.forEach((criteria) =>
-      handleSliderChange(criteria, showOptionalCriterias ? undefined : 0)
+      handleSliderChange(
+        criteria,
+        showOptionalCriterias ? undefined : 0,
+        SLIDER_SCORE_MAX
+      )
     );
   };
 
   if (uidA == uidB) {
-    return (
-      <div className={classes.root}>
-        <Typography sx={{ textAlign: 'center' }}>
-          {t('comparison.itemsAreSimilar')}
-          {' 🌻'}
-        </Typography>
-      </div>
-    );
+    return <ItemsAreSimilar />;
   }
 
   return (
@@ -183,44 +221,80 @@ const ComparisonSliders = ({
               criteria={criteria.name}
               criteriaLabel={criteria.label}
               criteriaValue={criteriaValues[criteria.name]}
-              disabled={submitted}
+              disabled={readOnly || submitted}
               handleSliderChange={handleSliderChange}
             />
           ))}
-        <Button
-          fullWidth
-          disabled={!criterias.some((c) => c.optional)}
-          onClick={handleCollapseCriterias}
-          startIcon={showOptionalCriterias ? <ExpandLess /> : <ExpandMore />}
-          size="medium"
-          color="secondary"
-          sx={{
-            marginBottom: '8px',
-            color: showOptionalCriterias ? 'red' : '',
-          }}
-        >
-          {showOptionalCriterias
-            ? t('comparison.removeOptionalCriterias')
-            : t('comparison.addOptionalCriterias')}
-        </Button>
-        <Collapse
-          in={showOptionalCriterias}
-          timeout="auto"
-          sx={{ width: '100%' }}
-        >
-          {criterias
-            .filter((c) => c.optional)
-            .map((criteria) => (
+
+        {critAlwaysDisplayed != undefined &&
+          critAlwaysDisplayed
+            .filter(
+              (criteria) => criterias.find((c) => c.name === criteria)?.optional
+            )
+            .map((criterionName) => (
               <CriteriaSlider
-                key={criteria.name}
-                criteria={criteria.name}
-                criteriaLabel={criteria.label}
-                criteriaValue={criteriaValues[criteria.name]}
-                disabled={submitted}
+                key={criterionName}
+                criteria={criterionName}
+                criteriaLabel={
+                  criterias.find((c) => c.name === criterionName)?.label ??
+                  criterionName
+                }
+                criteriaValue={criteriaValues[criterionName]}
+                disabled={readOnly || submitted}
                 handleSliderChange={handleSliderChange}
               />
             ))}
-        </Collapse>
+
+        {!criterias
+          .filter((c) => c.optional)
+          .every((optCriterion) => {
+            return critAlwaysDisplayed?.includes(optCriterion.name);
+          }) && (
+          <>
+            {!readOnly && (
+              <Button
+                fullWidth
+                disabled={
+                  !criterias.some((c) => isCollapsed(c, critAlwaysDisplayed))
+                }
+                onClick={handleCollapseCriterias}
+                startIcon={
+                  showOptionalCriterias ? <ExpandLess /> : <ExpandMore />
+                }
+                size="medium"
+                color="secondary"
+                sx={{
+                  marginBottom: '8px',
+                  color: showOptionalCriterias ? 'red' : '',
+                }}
+              >
+                {showOptionalCriterias
+                  ? t('comparison.removeOptionalCriterias')
+                  : t('comparison.addOptionalCriterias')}
+              </Button>
+            )}
+
+            <Collapse
+              in={showOptionalCriterias}
+              timeout="auto"
+              sx={{ width: '100%' }}
+            >
+              {criterias
+                .filter((c) => isCollapsed(c, critAlwaysDisplayed))
+                .map((criteria) => (
+                  <CriteriaSlider
+                    key={criteria.name}
+                    criteria={criteria.name}
+                    criteriaLabel={criteria.label}
+                    criteriaValue={criteriaValues[criteria.name]}
+                    disabled={readOnly || submitted}
+                    handleSliderChange={handleSliderChange}
+                  />
+                ))}
+            </Collapse>
+          </>
+        )}
+
         {submitted && (
           <div id="id_submitted_text_info">
             <Typography>{t('comparison.changeOneItem')}</Typography>
@@ -247,7 +321,7 @@ const ComparisonSliders = ({
           )}
         </Box>
         <Button
-          disabled={disableSubmit || !isPollActive}
+          disabled={disableSubmit || readOnly || !isPollActive}
           variant="contained"
           color="primary"
           size="large"

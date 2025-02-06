@@ -5,24 +5,40 @@ import { Box, useMediaQuery } from '@mui/material';
 import Grid from '@mui/material/Unstable_Grid2';
 
 import FooterSection from 'src/features/frame/components/footer/FooterSection';
+import { theme } from 'src/theme';
+import { getPollName, polls } from 'src/utils/constants';
 import { getWebExtensionUrl } from 'src/utils/extension';
 import {
-  getWikiBaseUrl,
-  twitterTournesolBotEnUrl,
-  twitterTournesolBotFrUrl,
-  twitterTournesolUrl,
+  blueskyTournesolBotEnUrl,
+  blueskyTournesolBotFrUrl,
+  blueskyTournesolUrl,
+  linkedInTournesolUrl,
+  twitchTournesolUrl,
+  youtubePlaylistEnUrl,
+  youtubePlaylistFrUrl,
   discordTournesolInviteUrl,
   githubTournesolUrl,
-  utipTournesolUrl,
+  KKBBTournesolEnUrl,
+  KKBBTournesolFrUrl,
   paypalTournesolUrl,
+  tournesolTalksMailingListUrl,
   whitePaperUrl,
+  tournesolTalksYTPlaylist,
+  youtubeTournesolUrl,
 } from 'src/utils/url';
-import { theme } from 'src/theme';
 
 const Footer = () => {
-  const apiUrl = process.env.REACT_APP_API_URL;
+  const apiUrl = import.meta.env.REACT_APP_API_URL;
 
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLanguage = i18n.resolvedLanguage;
+
+  const linksToPolls = polls.map((poll) => {
+    return {
+      name: `Tournesol ${getPollName(t, poll.name)}`,
+      to: poll.path,
+    };
+  });
 
   const footerSections = [
     {
@@ -37,28 +53,38 @@ const Footer = () => {
           name: t('footer.firefoxExtension'),
           to: getWebExtensionUrl('firefox') || '',
         },
-        { name: 'Twitter Bot EN', to: twitterTournesolBotEnUrl },
-        { name: 'Twitter Bot FR', to: twitterTournesolBotFrUrl },
+        { name: 'Bluesky Bot EN', to: blueskyTournesolBotEnUrl },
+        { name: 'Bluesky Bot FR', to: blueskyTournesolBotFrUrl },
+        { name: t('footer.youtubePlaylistEn'), to: youtubePlaylistEnUrl },
+        { name: t('footer.youtubePlaylistFr'), to: youtubePlaylistFrUrl },
       ],
     },
     {
       id: 'follow-us',
       title: t('footer.followUs'),
       items: [
-        { name: 'Twitter', to: twitterTournesolUrl },
+        { name: t('footer.events'), to: '/events' },
+        { name: 'Bluesky', to: blueskyTournesolUrl },
+        { name: 'YouTube', to: youtubeTournesolUrl },
+        { name: 'Twitch', to: twitchTournesolUrl },
         { name: 'Discord', to: discordTournesolInviteUrl },
-        {
-          name: 'GitHub',
-          to: githubTournesolUrl,
-        },
+        { name: 'LinkedIn', to: linkedInTournesolUrl },
+        { name: 'GitHub', to: githubTournesolUrl },
       ],
     },
     {
       id: 'support-us',
       title: t('footer.supportUs'),
       items: [
-        { name: t('footer.directTransfer'), to: '/about/donate' },
-        { name: 'uTip', to: utipTournesolUrl },
+        {
+          name: t('footer.directTransfer'),
+          to: '/about/donate#direct_transfer',
+        },
+        {
+          name: 'KissKissBankBank',
+          to:
+            currentLanguage === 'fr' ? KKBBTournesolFrUrl : KKBBTournesolEnUrl,
+        },
         { name: 'PayPal', to: paypalTournesolUrl },
         { name: t('footer.compareVideos'), to: '/comparison' },
       ],
@@ -75,15 +101,34 @@ const Footer = () => {
           name: t('footer.publicDatabase'),
           to: `${apiUrl}/exports/all/`,
         },
+        {
+          name: t('footer.tournesolTalks'),
+          to: '/talks',
+        },
+        {
+          name: t('footer.tournesolTalksMailingList'),
+          to: tournesolTalksMailingListUrl,
+        },
+        {
+          name: t('footer.tournesolTalksYTPlaylist'),
+          to: tournesolTalksYTPlaylist,
+        },
       ],
     },
     {
       id: 'more',
       title: t('footer.more'),
       items: [
+        {
+          name: t('terms.termsOfService'),
+          to: '/about/terms-of-service',
+        },
         { name: t('footer.privacyPolicy'), to: '/about/privacy_policy' },
-        // { name: 'FAQ', to: '' },
-        { name: 'Wiki', to: getWikiBaseUrl() },
+        {
+          name: t('footer.takeAction'),
+          to: '/actions',
+        },
+        ...linksToPolls,
       ],
       trailingDivider: false,
     },
@@ -94,7 +139,7 @@ const Footer = () => {
   });
 
   return (
-    <Box padding={2} color="#fff" bgcolor="#1282B2">
+    <Box p={2} color="#fff" bgcolor="background.emphatic">
       <Grid
         container
         spacing={2}

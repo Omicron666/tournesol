@@ -2,18 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { useLocation, Redirect } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+
 import {
   TextField,
   Grid,
   Button,
-  Link,
   Box,
   Divider,
   Typography,
 } from '@mui/material';
 
 import { useAppSelector, useAppDispatch } from 'src/app/hooks';
-import { ContentHeader, ContentBox } from 'src/components';
+import { ContentHeader, ContentBox, InternalLink } from 'src/components';
 import { getTokenAsync, selectLogin } from './loginSlice';
 import { hasValidToken } from './loginUtils';
 import { LoginState } from './LoginState.model';
@@ -81,6 +81,7 @@ const Login = () => {
                 size="small"
                 variant="outlined"
                 autoFocus={true}
+                autoComplete="username"
                 onChange={(event) => setUsername(event.target.value)}
               />
             </Grid>
@@ -94,6 +95,7 @@ const Login = () => {
                 size="small"
                 type="password"
                 variant="outlined"
+                autoComplete="current-password"
                 onChange={(event) => setPassword(event.target.value)}
               />
             </Grid>
@@ -111,14 +113,9 @@ const Login = () => {
           </Grid>
         </form>
         <Box my={2}>
-          <Link
-            component={RouterLink}
-            to="/forgot"
-            color="secondary"
-            underline="hover"
-          >
+          <InternalLink to="/forgot">
             {t('login.forgotYourPassword')}
-          </Link>
+          </InternalLink>
         </Box>
         <Divider />
         <Box my={2}>

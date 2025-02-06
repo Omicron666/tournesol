@@ -168,17 +168,17 @@
 
 - name: Add Grafana repository signing key
   apt_key:
-    url: https://packages.grafana.com/gpg.key
+    url: https://apt.grafana.com/gpg.key
     state: present
 
 - name: Add Grafana repository
   apt_repository:
-    repo: deb https://packages.grafana.com/oss/deb stable main
+    repo: deb https://apt.grafana.com stable main
     state: present
 
 - name: Install Grafana
   apt:
-    name: grafana
+    name: "grafana"
     install_recommends: no
     update_cache: yes
   notify:
@@ -186,7 +186,6 @@
     # - Set Grafana default organization role
     - Create Grafana OIDC application in Django database
     - Enable and restart Grafana
-    - Create Grafana Prometheus datasource
 
 - name: Setup Grafana server parameters
   blockinfile:
@@ -240,6 +239,14 @@
       name_attribute_path = username
   notify:
     - Enable and restart Grafana
+
+- name: Create Grafana Prometheus datasource
+  template:
+    dest: /etc/grafana/provisioning/datasources/prometheus.yaml
+    src: datasource_prometheus.yaml.j2
+    mode: u=rw,g=r,o=
+    group: grafana
+  notify: Enable and restart Grafana
 
 - meta: flush_handlers
 
@@ -315,25 +322,16 @@
     version: "{{item.version}}"
   with_items:
     - name: grafana-image-renderer
-      version: "3.2.1"
+      version: "3.6.2"
   when: discord_infra_alert_webhook is defined and discord_infra_alert_webhook != ""
   notify: Enable and restart Grafana
 
-- name: Create Discord notification channel
-  register: discord_notification_channel
-  community.grafana.grafana_notification_channel:
-    grafana_url: "http://127.0.0.1:3000"
-    url_username: admin
-    url_password: "{{grafana_admin_password}}"
-    validate_certs: no
-    uid: discord
-    name: Tournesol Discord
-    type: discord
-    discord_url: "{{discord_infra_alert_webhook}}"
-    is_default: yes
-    include_image: yes
-    reminder_frequency: 5m
-  when: discord_infra_alert_webhook is defined and discord_infra_alert_webhook != ""
+- meta: flush_handlers
+
+- name: Wait for Grafana API
+  wait_for:
+    port: 3000
+    timeout: 32
 
 - name: Create Grafana dashboards
   community.grafana.grafana_dashboard:
@@ -388,3 +386,11 @@
     state: started
     enabled: yes
     daemon_reload: yes
+
+- name: Run tasks of role logging
+  import_role:
+    name: logging
+
+- name: Run tasks of role grafana_alerting
+  import_role:
+    name: grafana_alerting

@@ -7,43 +7,27 @@ import {
 } from '@mui/icons-material';
 import { makeStyles } from '@mui/styles';
 import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
-import { displayScore } from 'src/utils/criteria';
-import { Recommendation } from 'src/services/openapi';
 import CriteriaIcon from '../CriteriaIcon';
+import { EntityResult } from 'src/utils/types';
+import TournesolScore from './TournesolScore';
 
 interface Props {
-  entity: Recommendation;
+  result: EntityResult;
   showTournesolScore?: boolean;
   showTotalScore?: boolean;
 }
 
 const useStyles = makeStyles((theme: Theme) => ({
-  nb_tournesol: {
-    fontFamily: 'Poppins',
-    fontStyle: 'normal',
-    fontWeight: 'bold',
-    fontSize: '2em',
-    lineHeight: '32px',
-  },
   ratings: {
-    marginRight: '4px',
-    fontFamily: 'Poppins',
-    fontStyle: 'italic',
-    fontWeight: 'normal',
-    fontSize: '0.9em',
-    color: theme.palette.neutral.main,
+    color: theme.palette.text.secondary,
   },
   contributors: {
-    fontFamily: 'Poppins',
-    fontStyle: 'italic',
-    fontWeight: 500,
-    fontSize: '0.9em',
-    color: '#B38B00',
+    color: theme.palette.neutral.dark,
   },
 }));
 
 const EntityCardScores = ({
-  entity,
+  result,
   showTournesolScore = true,
   showTotalScore = false,
 }: Props) => {
@@ -52,26 +36,39 @@ const EntityCardScores = ({
   const { getCriteriaLabel, options } = useCurrentPoll();
   const mainCriterionName = options?.mainCriterionName ?? '';
 
-  const nbRatings = entity.n_comparisons;
-  const nbContributors = entity.n_contributors;
+  if (!('collective_rating' in result) || result.collective_rating == null) {
+    return null;
+  }
+
+  const nbRatings = result.collective_rating.n_comparisons;
+  const nbContributors = result.collective_rating.n_contributors;
 
   let max_score = -Infinity;
   let min_score = Infinity;
   let max_criteria = '';
   let min_criteria = '';
 
-  let unsafeCause = '';
-  if ('tournesol_score' in entity) {
-    if (nbContributors != null && nbContributors <= 1) {
-      unsafeCause = t('video.unsafeNotEnoughContributor');
-    } else if (entity.tournesol_score && entity.tournesol_score < 0) {
-      unsafeCause = t('video.unsafeNegativeRating');
-    }
-  }
-  const isUnsafe = unsafeCause !== '';
+  const isUnsafe = result.collective_rating.unsafe.status;
+  const unsafeReasons = result.collective_rating.unsafe.reasons
+    .map((reason) => {
+      if (reason === 'insufficient_tournesol_score') {
+        return t('video.insufficientScore');
+      }
+      if (reason === 'insufficient_trust') {
+        return t('video.unsafeNotEnoughContributor');
+      }
+      if (reason === 'moderation_by_association') {
+        return t('video.discardedByAssociation');
+      }
+      if (reason === 'moderation_by_contributors') {
+        return t('video.discardedByContributors');
+      }
+      return '';
+    })
+    .filter((str) => str !== '');
 
-  if ('criteria_scores' in entity) {
-    entity.criteria_scores?.forEach((criteria) => {
+  if ('criteria_scores' in result.collective_rating) {
+    result.collective_rating.criteria_scores.forEach((criteria) => {
       if (
         criteria.score != undefined &&
         criteria.score > max_score &&
@@ -91,21 +88,31 @@ const EntityCardScores = ({
     });
   }
 
-  const tournesolScoreTitle = isUnsafe ? (
-    <Stack direction="row" alignItems="center" gap={1}>
-      <WarningIcon />
-      <span>{unsafeCause}</span>
-    </Stack>
-  ) : (
-    ''
-  );
+  const tournesolScoreTitle =
+    isUnsafe && unsafeReasons.length > 0 ? (
+      <Stack direction="row" alignItems="center" gap={1}>
+        <WarningIcon />
+        <Box display="flex" flexDirection="column" gap={1}>
+          {unsafeReasons.map((reason) => (
+            <span key={reason}>{reason}</span>
+          ))}
+        </Box>
+      </Stack>
+    ) : (
+      ''
+    );
+
+  const totalScore =
+    'recommendation_metadata' in result
+      ? result.recommendation_metadata.total_score
+      : null;
 
   return (
     <>
-      {showTotalScore && (
+      {showTotalScore && totalScore != null && (
         <Box display="flex" alignItems="center" columnGap={1}>
           <Typography color="text.secondary">
-            Score : <strong>{entity.total_score.toFixed(2)}</strong>
+            Score : <strong>{totalScore.toFixed(2)}</strong>
             {''}
           </Typography>
           <Tooltip
@@ -120,40 +127,27 @@ const EntityCardScores = ({
         display="flex"
         flexWrap="wrap"
         alignItems="center"
-        columnGap="12px"
-        py={1}
+        columnGap="10px"
+        paddingTop={1.5}
       >
         {showTournesolScore &&
-          'tournesol_score' in entity &&
-          entity.tournesol_score != null && (
-            <Tooltip title={tournesolScoreTitle} placement="right">
-              <Box
-                display="flex"
-                alignItems="center"
-                data-testid="video-card-overall-score"
-                {...(isUnsafe && {
-                  sx: {
-                    filter: 'grayscale(100%)',
-                    opacity: 0.6,
-                  },
-                })}
-              >
-                <img
-                  className="tournesol"
-                  src={'/svg/tournesol.svg'}
-                  alt="logo"
-                  title="Overall score"
-                  width={32}
-                />
-                <span className={classes.nb_tournesol}>
-                  {entity.tournesol_score.toFixed(0)}
-                </span>
-              </Box>
-            </Tooltip>
+          result.collective_rating?.tournesol_score != null && (
+            <TournesolScore
+              score={result.collective_rating.tournesol_score}
+              tooltip={tournesolScoreTitle}
+              fontSize="2rem"
+              unsafe={isUnsafe}
+              data-testid="video-card-overall-score"
+            />
           )}
 
         {nbRatings != null && nbRatings > 0 && (
-          <Box data-testid="video-card-ratings">
+          <Box
+            data-testid="video-card-ratings"
+            display="flex"
+            flexDirection="column"
+            fontSize="0.9rem"
+          >
             <span className={classes.ratings}>
               <Trans t={t} i18nKey="video.nbComparisonsBy" count={nbRatings}>
                 {{ count: nbRatings }} comparisons by
@@ -175,40 +169,42 @@ const EntityCardScores = ({
           <Box
             data-testid="video-card-minmax-criterias"
             display="flex"
-            alignItems="center"
+            flexDirection="column"
+            rowGap="2px"
             sx={{
-              fontFamily: 'Poppins',
-              fontSize: '0.9em',
-              color: 'text.secondary',
-              gap: '6px',
+              borderLeft: '1px solid',
+              borderColor: 'divider',
+              paddingLeft: 1,
+              fontSize: '0.9rem',
+              color: 'neutral.main',
             }}
           >
             {max_score > 0 && (
-              <>
-                <span>{t('video.criteriaRatedHigh')}</span>
+              <Box display="flex" alignItems="center" columnGap={1}>
+                {t('video.criteriaRatedHigh')}
                 <CriteriaIcon
                   criteriaName={max_criteria}
-                  emojiSize="26px"
-                  imgWidth="32px"
-                  tooltip={`${getCriteriaLabel(max_criteria)}: ${displayScore(
-                    max_score
-                  )}`}
+                  emojiSize="14px"
+                  imgWidth="16px"
+                  tooltip={`${getCriteriaLabel(
+                    max_criteria
+                  )}: ${max_score.toFixed(0)}`}
                 />
-              </>
+              </Box>
             )}
             <span />
             {min_score < 0 && (
-              <>
-                <span>{t('video.criteriaRatedLow')}</span>
+              <Box display="flex" alignItems="center" columnGap={1}>
+                {t('video.criteriaRatedLow')}
                 <CriteriaIcon
                   criteriaName={min_criteria}
-                  emojiSize="26px"
-                  imgWidth="32px"
-                  tooltip={`${getCriteriaLabel(min_criteria)}: ${displayScore(
-                    min_score
-                  )}`}
+                  emojiSize="14px"
+                  imgWidth="16px"
+                  tooltip={`${getCriteriaLabel(
+                    min_criteria
+                  )}: ${min_score.toFixed(0)}`}
                 />
-              </>
+              </Box>
             )}
           </Box>
         )}

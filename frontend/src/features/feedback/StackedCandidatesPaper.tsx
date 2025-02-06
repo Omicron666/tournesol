@@ -6,13 +6,13 @@ import {
   Box,
   Button,
   Grid,
-  Link,
   ListItem,
   ListItemAvatar,
   ListItemText,
   Typography,
 } from '@mui/material';
 
+import { InternalLink } from 'src/components';
 import StackedCard from 'src/components/StackedCard';
 import { useCurrentPoll } from 'src/hooks';
 import {
@@ -42,24 +42,24 @@ const StackedCandidatesPaper = ({
 
   const nComparisons = Object.fromEntries(
     ratings.map((rating) => {
-      return [rating.entity.uid, rating.n_comparisons];
+      return [rating.entity.uid, rating.individual_rating.n_comparisons];
     })
   );
 
   const sortedRecommendations = recommendations
     .filter(
       (entityWithScores) =>
-        entityWithScores.criteria_scores.find(
+        entityWithScores.individual_rating.criteria_scores.find(
           ({ criteria }) => criteria == sortingCriteria
         )?.score != null
     )
     .map((entityWithScores) => ({
-      entity: entityWithScores,
-      score: entityWithScores.criteria_scores.find(
+      reco: entityWithScores,
+      score: entityWithScores.individual_rating.criteria_scores.find(
         ({ criteria }) => criteria == sortingCriteria
       )?.score,
     }))
-    .map(({ entity, score }) => ({ entity, score: 10 * (score as number) }))
+    .map(({ reco, score }) => ({ reco, score: 10 * (score as number) }))
     .sort((a, b) => (a.score < b.score ? 1 : -1));
 
   return (
@@ -76,17 +76,18 @@ const StackedCandidatesPaper = ({
           </Trans>
         </Typography>
       }
-      items={sortedRecommendations.map(({ entity, score }) => {
+      items={sortedRecommendations.map(({ reco, score }) => {
+        const entity = reco.entity;
         const nComp = nComparisons[entity.uid] || 0;
         return (
           <ListItem key={entity.uid} alignItems="flex-start">
             <ListItemAvatar>
-              <RouterLink to={`${baseUrl}/entities/${entity.uid}`}>
+              <InternalLink to={`${baseUrl}/entities/${entity.uid}`}>
                 <Avatar
                   alt={entity?.metadata?.name || ''}
                   src={entity?.metadata?.image_url || ''}
                 />
-              </RouterLink>
+              </InternalLink>
             </ListItemAvatar>
 
             {/* To stay mobile friendly, only the avatar is clickable. The
@@ -102,9 +103,8 @@ const StackedCandidatesPaper = ({
                     variant="body2"
                     color="text.primary"
                   >
-                    <Link
+                    <InternalLink
                       color="inherit"
-                      component={RouterLink}
                       to={`${baseUrl}/comparisons/?uid=${entity.uid}`}
                     >
                       <Trans
@@ -114,7 +114,7 @@ const StackedCandidatesPaper = ({
                       >
                         with {{ nComp }} comparisons
                       </Trans>
-                    </Link>
+                    </InternalLink>
                   </Typography>
                   {' - '}
                   {t('stackedCandidatesPaper.score')}

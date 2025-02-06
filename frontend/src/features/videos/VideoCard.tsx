@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link as RouterLink } from 'react-router-dom';
-import makeStyles from '@mui/styles/makeStyles';
 import {
   Grid,
   Box,
@@ -9,47 +7,22 @@ import {
   IconButton,
   useMediaQuery,
   useTheme,
-  Theme,
 } from '@mui/material';
 
-import { ActionList, VideoObject } from 'src/utils/types';
+import { ActionList } from 'src/utils/types';
+import { Recommendation } from 'src/services/openapi';
 import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
-import { videoIdFromEntity } from 'src/utils/video';
-import VideoCardScores from './VideoCardScores';
 import EntityCardTitle from 'src/components/entity/EntityCardTitle';
+import EntityCardScores from 'src/components/entity/EntityCardScores';
+import { InternalLink } from 'src/components';
 import { entityCardMainSx } from 'src/components/entity/style';
 import { DurationWrapper } from 'src/components/entity/EntityImagery';
 import { VideoMetadata } from 'src/components/entity/EntityMetadata';
 import { useCurrentPoll } from 'src/hooks';
 import { UID_YT_NAMESPACE } from 'src/utils/constants';
-
-const useStyles = makeStyles((theme: Theme) => ({
-  youtube_complements: {
-    marginBottom: '8px',
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignContent: 'space-between',
-    fontFamily: 'Poppins',
-    fontSize: '0.8em',
-    color: theme.palette.neutral.main,
-  },
-  youtube_complements_p: {
-    marginRight: '12px',
-  },
-  top: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignContent: 'space-between',
-  },
-  settingsContainer: {
-    '&.MuiGrid-item': {
-      padding: 0,
-    },
-  },
-}));
 
 function VideoCard({
   video,
@@ -59,7 +32,7 @@ function VideoCard({
   personalScore,
   showPlayer = true,
 }: {
-  video: VideoObject;
+  video: Recommendation;
   actions?: ActionList;
   settings?: ActionList;
   compact?: boolean;
@@ -67,12 +40,12 @@ function VideoCard({
   showPlayer?: boolean;
 }) {
   const theme = useTheme();
-  const classes = useStyles();
 
   const { t } = useTranslation();
   const { baseUrl } = useCurrentPoll();
 
-  const videoId = videoIdFromEntity(video);
+  const entity = video.entity;
+  const videoId = entity.metadata.video_id;
 
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'), {
     noSsr: true,
@@ -107,18 +80,18 @@ function VideoCard({
               },
             }}
           >
-            <RouterLink
+            <InternalLink
               to={`${baseUrl}/entities/${UID_YT_NAMESPACE}${videoId}`}
-              className="full-width"
+              sx={{ width: '100%' }}
             >
-              <DurationWrapper duration={video.duration || undefined}>
+              <DurationWrapper duration={entity.metadata.duration || undefined}>
                 <img
                   className="full-width entity-thumbnail"
                   src={`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`}
-                  alt={video.name}
+                  alt={entity.metadata.name}
                 />
               </DurationWrapper>
-            </RouterLink>
+            </InternalLink>
           </Box>
         </Grid>
       )}
@@ -133,13 +106,17 @@ function VideoCard({
         container
         direction="column"
       >
-        <EntityCardTitle uid={video.uid} title={video.name} compact={compact} />
-        <VideoMetadata
-          views={video.views}
-          publicationDate={video.publication_date}
-          uploader={video.uploader}
+        <EntityCardTitle
+          uid={entity.uid}
+          title={entity.metadata.name}
+          compact={compact}
         />
-        {!compact && <VideoCardScores video={video} />}
+        <VideoMetadata
+          views={entity.metadata.views}
+          publicationDate={entity.metadata.publication_date}
+          uploader={entity.metadata.uploader}
+        />
+        {!compact && <EntityCardScores result={video} />}
         {personalScore !== undefined &&
           t('video.personalScore', { score: personalScore.toFixed(0) })}
       </Grid>
@@ -159,7 +136,7 @@ function VideoCard({
       >
         {actions.map((Action, index) =>
           typeof Action === 'function' ? (
-            <Action key={index} uid={video.uid} />
+            <Action key={index} uid={entity.uid} />
           ) : (
             Action
           )
@@ -178,7 +155,7 @@ function VideoCard({
         )}
       </Grid>
       {settings.length > 0 && (
-        <Grid item xs={12} className={classes.settingsContainer}>
+        <Grid item xs={12} p={0}>
           <Collapse in={settingsVisible || !isSmallScreen}>
             <Box
               paddingY={1}
@@ -189,7 +166,7 @@ function VideoCard({
             >
               {settings.map((Action, index) =>
                 typeof Action === 'function' ? (
-                  <Action key={index} uid={video.uid} />
+                  <Action key={index} uid={entity.uid} />
                 ) : (
                   Action
                 )

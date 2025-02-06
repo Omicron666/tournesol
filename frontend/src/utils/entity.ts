@@ -1,49 +1,15 @@
-import { RelatedEntityObject } from './types';
-import {
-  Entity,
-  Recommendation,
-  Video,
-  VideoSerializerWithCriteria,
-} from 'src/services/openapi';
-
-export const videoFromRelatedEntity = (entity: RelatedEntityObject): Video => {
-  return {
-    uid: entity.uid,
-    name: entity.metadata.name,
-    description: entity.metadata.description,
-    publication_date: entity.metadata.publication_date,
-    views: entity.metadata.views,
-    uploader: entity.metadata.uploader,
-    language: entity.metadata.language,
-    rating_n_ratings: 0,
-    rating_n_contributors: 0,
-    duration: entity.metadata.duration,
-    video_id: entity.metadata.video_id,
-  };
-};
-
-export const videoWithScoresFromRecommendation = (
-  entity: Recommendation
-): VideoSerializerWithCriteria => {
-  const video = videoFromRelatedEntity(entity);
-
-  return {
-    ...video,
-    criteria_scores: entity.criteria_scores,
-    tournesol_score: entity.tournesol_score ?? null,
-    rating_n_ratings: entity.n_comparisons,
-    rating_n_contributors: entity.n_contributors,
-  };
-};
+import { EntityResult } from './types';
 
 /**
  * Return a random entity with uid not included in the `exclude` array.
  */
 export const selectRandomEntity = (
-  entities: Array<Entity | Recommendation>,
+  entities: Array<EntityResult>,
   exclude: string[]
-): Entity | Recommendation => {
-  const filtered = entities.filter((entity) => !exclude.includes(entity.uid));
+): EntityResult => {
+  const filtered = entities.filter(
+    (reco) => !exclude.includes(reco.entity.uid)
+  );
 
   return filtered[Math.floor(Math.random() * filtered.length)];
 };

@@ -1,6 +1,5 @@
+import { ComparisonCriteriaScore } from 'src/services/openapi';
 import { criteriaToEmoji } from 'src/utils/constants';
-
-export const displayScore = (score: number) => score.toFixed(1);
 
 export const criteriaIcon = (criteriaName: string) => {
   const emoji =
@@ -8,7 +7,7 @@ export const criteriaIcon = (criteriaName: string) => {
   const imagePath =
     criteriaName === 'largely_recommended'
       ? '/svg/LogoSmall.svg'
-      : `/svg/${criteriaName}.svg`;
+      : `/images/criteriaIcons/${criteriaName}.svg`;
   return { emoji, imagePath };
 };
 
@@ -27,3 +26,20 @@ const criterionColors: { [criteria: string]: string } = {
 
 export const criterionColor = (criterion: string) =>
   criterionColors[criterion] || '#506ad4';
+
+export const getCriterionScoreMax = (
+  criteriaScores?: ComparisonCriteriaScore[],
+  criterion?: string
+): number | undefined => {
+  if (criteriaScores == undefined || criterion == undefined) {
+    return undefined;
+  }
+
+  const main = criteriaScores.find((crit) => crit.criteria === criterion);
+
+  if (main == undefined) {
+    return undefined;
+  }
+
+  return main.score_max;
+};

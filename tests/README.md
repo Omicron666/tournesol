@@ -4,8 +4,8 @@ An end-to-end tests suite, based on [Cypress](https://www.cypress.io/), for the 
 
 ## Requirements
 
-* A local instance of Tournesol, as provided by [dev-env](../dev-env/README.md)
-* Node.js 14
+* A local instance of Tournesol, as provided by [dev-env](../dev-env/README.md), initialized with the default database only.
+* Node.js 18
 
 ### Install the dependencies
 

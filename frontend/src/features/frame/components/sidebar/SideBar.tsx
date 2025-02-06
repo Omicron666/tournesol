@@ -1,9 +1,11 @@
 import React from 'react';
 import clsx from 'clsx';
+import { useSelector } from 'react-redux';
 import { useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+
 import {
-  ListItem,
+  ListItemButton,
   ListItemText,
   ListItemIcon,
   Drawer,
@@ -11,6 +13,7 @@ import {
   Theme,
   Divider,
   Tooltip,
+  Avatar,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import makeStyles from '@mui/styles/makeStyles';
@@ -31,15 +34,21 @@ import {
   WatchLater as WatchLaterIcon,
 } from '@mui/icons-material';
 
-import { closeDrawer } from '../../drawerOpenSlice';
 import { useAppSelector, useAppDispatch } from 'src/app/hooks';
 import { LanguageSelector } from 'src/components';
 import { useCurrentPoll } from 'src/hooks/useCurrentPoll';
+import { selectSettings } from 'src/features/settings/userSettingsSlice';
 import {
+  getFeedTopItemsPageName,
   getRecommendationPageName,
+  PRESIDENTIELLE_2022_POLL_NAME,
   YOUTUBE_POLL_NAME,
 } from 'src/utils/constants';
 import { RouteID } from 'src/utils/types';
+import { getFeedTopItemsDefaultSearchParams } from 'src/utils/userSettings';
+
+import { closeDrawer } from '../../drawerOpenSlice';
+import { BeforeInstallPromptEvent } from '../../pwaPrompt';
 
 export const sideBarWidth = 264;
 
@@ -83,24 +92,16 @@ const useStyles = makeStyles((theme: Theme) => ({
       minWidth: `${sideBarWidth}px`,
     },
   },
-  listItem: {
-    height: '64px',
-  },
-  listItemIcon: {
-    color: '#CDCABC',
-  },
   listItemIconSelected: {
     color: theme.palette.neutral.dark,
   },
-  listItemText: {
-    fontWeight: 'bold',
-    '&:first-letter': {
-      textTransform: 'capitalize',
-    },
-  },
 }));
 
-const SideBar = () => {
+interface Props {
+  beforeInstallPromptEvent?: BeforeInstallPromptEvent;
+}
+
+const SideBar = ({ beforeInstallPromptEvent }: Props) => {
   const classes = useStyles();
   const theme = useTheme();
 
@@ -111,9 +112,9 @@ const SideBar = () => {
   const { name: pollName, options } = useCurrentPoll();
   const path = options && options.path ? options.path : '/';
   const disabledItems = options?.disabledRouteIds ?? [];
-  const defaultRecoSearchParams = options?.defaultRecoSearchParams
-    ? '?' + options?.defaultRecoSearchParams
-    : '';
+  const langsAutoDiscovery = options?.defaultRecoLanguageDiscovery ?? false;
+
+  const userSettings = useSelector(selectSettings)?.settings;
 
   const drawerOpen = useAppSelector(selectFrame);
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
@@ -129,57 +130,87 @@ const SideBar = () => {
       targetUrl: path,
       IconComponent: HomeIcon,
       displayText: t('menu.home'),
+      ariaLabel: t('menu.homeAriaLabel'),
+    },
+    { displayText: 'divider_1' },
+    {
+      id: RouteID.FeedTopItems,
+      targetUrl: `${path}feed/top${getFeedTopItemsDefaultSearchParams(
+        pollName,
+        options,
+        userSettings,
+        langsAutoDiscovery
+      )}`,
+      IconComponent: EmojiEventsIcon,
+      displayText: getFeedTopItemsPageName(t, pollName),
+      ariaLabel: t('menu.feedTopItemsAriaLabel'),
+    },
+    {
+      id: RouteID.FeedForYou,
+      targetUrl: `${path}feed/foryou`,
+      IconComponent:
+        pollName === YOUTUBE_POLL_NAME ? VideoLibrary : TableRowsIcon,
+      displayText: t('menu.forYou'),
+      ariaLabel: t('menu.forYou'),
     },
     {
       id: RouteID.CollectiveRecommendations,
-      targetUrl: `${path}recommendations${defaultRecoSearchParams}`,
-      IconComponent:
-        pollName === YOUTUBE_POLL_NAME ? VideoLibrary : TableRowsIcon,
+      targetUrl: `${path}recommendations`,
+      IconComponent: TableRowsIcon,
       displayText: getRecommendationPageName(t, pollName),
+      ariaLabel: t('menu.recommendationsAriaLabel'),
+      onlyForPolls: [PRESIDENTIELLE_2022_POLL_NAME],
     },
-    { displayText: 'divider_1' },
+    { displayText: 'divider_2' },
     {
       id: RouteID.Comparison,
       targetUrl: `${path}comparison`,
       IconComponent: CompareIcon,
       displayText: t('menu.compare'),
+      ariaLabel: t('menu.compareAriaLabel'),
     },
     {
       id: RouteID.MyComparisons,
       targetUrl: `${path}comparisons`,
       IconComponent: ListIcon,
       displayText: t('menu.myComparisons'),
+      ariaLabel: t('menu.myComparisonsAriaLabel'),
     },
     {
       id: RouteID.MyComparedItems,
       targetUrl: `${path}ratings`,
       IconComponent: StarsIcon,
       displayText: t('menu.comparedItems'),
+      ariaLabel: t('menu.myComparedItemsAriaLabel'),
     },
     {
       id: RouteID.MyRateLaterList,
       targetUrl: `${path}rate_later`,
       IconComponent: WatchLaterIcon,
       displayText: t('menu.myRateLaterList'),
+      ariaLabel: t('menu.myRateLaterListAriaLabel'),
     },
     {
       id: RouteID.MyFeedback,
       targetUrl: `${path}personal/feedback`,
       IconComponent: EmojiEventsIcon,
       displayText: t('menu.myResults'),
+      ariaLabel: t('menu.myFeedbackAriaLabel'),
     },
-    { displayText: 'divider_2' },
+    { displayText: 'divider_3' },
     {
       id: RouteID.FAQ,
       targetUrl: '/faq',
       IconComponent: HelpIcon,
       displayText: t('menu.faq'),
+      ariaLabel: t('menu.FAQAriaLabel'),
     },
     {
       id: RouteID.About,
       targetUrl: '/about',
       IconComponent: InfoIcon,
       displayText: t('menu.about'),
+      ariaLabel: t('menu.aboutAriaLabel'),
     },
   ];
 
@@ -203,54 +234,94 @@ const SideBar = () => {
       <List
         disablePadding
         onClick={isSmallScreen ? () => dispatch(closeDrawer()) : undefined}
-        sx={{ flexGrow: 1 }}
+        sx={{
+          flexGrow: 1,
+          wordBreak: 'break-word',
+          '& > .MuiListItemButton-root': {
+            minHeight: '56px',
+          },
+          '& .MuiListItemIcon-root': {
+            color: theme.palette.grey[400],
+            minWidth: '40px',
+          },
+          '& .MuiListItemText-primary': {
+            fontWeight: 'bold',
+            '&:first-letter': {
+              textTransform: 'capitalize',
+            },
+          },
+        }}
       >
-        {menuItems.map(({ id, targetUrl, IconComponent, displayText }) => {
-          if (!IconComponent || !targetUrl)
-            return <Divider key={displayText} />;
-          if (id && disabledItems.includes(id)) {
-            return;
-          }
+        {menuItems.map(
+          ({
+            id,
+            targetUrl,
+            IconComponent,
+            displayText,
+            ariaLabel,
+            onlyForPolls,
+          }) => {
+            if (!IconComponent || !targetUrl)
+              return <Divider key={displayText} />;
+            if (id && disabledItems.includes(id)) {
+              return;
+            }
+            if (onlyForPolls != undefined && !onlyForPolls.includes(pollName)) {
+              return;
+            }
 
-          const selected = isItemSelected(targetUrl);
-          return (
-            <ListItem
-              key={id}
-              button
-              selected={selected}
-              className={classes.listItem}
-              component={Link}
-              to={targetUrl}
-              sx={{
-                '&.Mui-selected': {
-                  bgcolor: 'action.selected',
-                },
-                '&.Mui-selected:hover': {
-                  bgcolor: 'action.selected',
-                },
-              }}
-            >
-              <Tooltip
-                title={drawerOpen === true ? '' : displayText}
-                placement="right"
-                arrow
+            const selected = isItemSelected(targetUrl);
+            return (
+              <ListItemButton
+                key={id}
+                aria-label={ariaLabel}
+                selected={selected}
+                component={Link}
+                to={targetUrl}
+                sx={{
+                  '&.Mui-selected': {
+                    bgcolor: 'action.selected',
+                  },
+                  '&.Mui-selected:hover': {
+                    bgcolor: 'action.selected',
+                  },
+                }}
               >
-                <ListItemIcon sx={{ minWidth: '40px' }}>
-                  <IconComponent
-                    className={clsx({
-                      [classes.listItemIcon]: !selected,
-                      [classes.listItemIconSelected]: selected,
-                    })}
-                  />
-                </ListItemIcon>
-              </Tooltip>
+                <Tooltip
+                  title={drawerOpen === true ? '' : displayText}
+                  placement="right"
+                  arrow
+                >
+                  <ListItemIcon>
+                    <IconComponent
+                      className={clsx({
+                        [classes.listItemIconSelected]: selected,
+                      })}
+                    />
+                  </ListItemIcon>
+                </Tooltip>
+                <ListItemText primary={displayText} />
+              </ListItemButton>
+            );
+          }
+        )}
+        {beforeInstallPromptEvent && (
+          <>
+            <Divider />
+            <ListItemButton onClick={() => beforeInstallPromptEvent.prompt()}>
+              <ListItemIcon>
+                <Avatar
+                  src="/icons/maskable-icon-512x512.png"
+                  sx={{ width: '24px', height: '24px' }}
+                />
+              </ListItemIcon>
               <ListItemText
-                primary={displayText}
-                primaryTypographyProps={{ className: classes.listItemText }}
+                primary={t('menu.installTheApp')}
+                primaryTypographyProps={{ color: theme.palette.neutral.dark }}
               />
-            </ListItem>
-          );
-        })}
+            </ListItemButton>
+          </>
+        )}
       </List>
       <Divider />
       <LanguageSelector languageName={drawerOpen} />

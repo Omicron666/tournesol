@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import makeStyles from '@mui/styles/makeStyles';
 import { Box } from '@mui/material';
+import { storage } from 'src/app/localStorage';
 import TopBar, { topBarHeight } from './components/topbar/TopBar';
 import Footer from './components/footer/Footer';
 import SideBar from './components/sidebar/SideBar';
 import StorageError from './components/StorageError';
+import { BeforeInstallPromptEvent } from './pwaPrompt';
 
 const isEmbedded = Boolean(new URLSearchParams(location.search).get('embed'));
 
@@ -51,12 +53,11 @@ const hasLocalStorageAccess = async () => {
   if (hasStorageAccess != null) {
     return hasStorageAccess;
   }
-  try {
-    localStorage;
-    return true;
-  } catch (err) {
-    return false;
-  }
+  return storage != null;
+};
+
+const applyEmbeddedStyle = () => {
+  document.documentElement.classList.add('embedded');
 };
 
 interface Props {
@@ -66,6 +67,9 @@ interface Props {
 const Frame = ({ children }: Props) => {
   const classes = useStyles();
   const [hasStorageError, setHasStorageError] = useState(false);
+  const [beforePromptEvent, setBeforePromptEvent] = useState<
+    BeforeInstallPromptEvent | undefined
+  >(undefined);
 
   useEffect(() => {
     const checkStorage = async () => {
@@ -75,17 +79,39 @@ const Frame = ({ children }: Props) => {
     };
     if (isEmbedded) {
       checkStorage();
+      applyEmbeddedStyle();
     }
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: BeforeInstallPromptEvent) => {
+      setBeforePromptEvent(event);
+      event.userChoice?.then(({ outcome }) => {
+        if (outcome === 'accepted') {
+          setBeforePromptEvent(undefined);
+        }
+      });
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+    };
   }, []);
 
   return (
     <>
-      {isEmbedded ? <EmbeddedTopBar /> : <TopBar />}
+      {isEmbedded ? (
+        <EmbeddedTopBar />
+      ) : (
+        <TopBar beforeInstallPromptEvent={beforePromptEvent} />
+      )}
       <div className={clsx({ [classes.sideBarContainer]: !isEmbedded })}>
-        {!isEmbedded && <SideBar />}
+        {!isEmbedded && (
+          <SideBar beforeInstallPromptEvent={beforePromptEvent} />
+        )}
         <main className={classes.main}>
           {hasStorageError ? <StorageError /> : children}
-          <Footer />
+          {!isEmbedded && <Footer />}
         </main>
       </div>
     </>

@@ -1,4 +1,7 @@
 import { addRateLater } from '../utils.js';
+import { frontendUrl } from '../config.js';
+
+const i18n = chrome.i18n;
 
 function get_current_tab_video_id() {
   function get_tab_video_id(tabs) {
@@ -22,7 +25,7 @@ function get_current_tab_video_id() {
  */
 function openTournesolHome() {
   chrome.tabs.create({
-    url: `https://tournesol.app`,
+    url: `${frontendUrl}?utm_source=extension&utm_medium=menu`,
   });
 }
 
@@ -34,7 +37,7 @@ function rateNowAction(event) {
   get_current_tab_video_id().then(
     (videoId) => {
       chrome.tabs.create({
-        url: `https://tournesol.app/comparison/?videoA=${videoId}`,
+        url: `${frontendUrl}/comparison?uidA=yt:${videoId}&utm_source=extension&utm_medium=menu`,
       });
     },
     () => {
@@ -91,7 +94,7 @@ function openAnalysisPageAction(event) {
   get_current_tab_video_id().then(
     (videoId) => {
       chrome.tabs.create({
-        url: `https://tournesol.app/entities/yt:${videoId}`,
+        url: `${frontendUrl}/entities/yt:${videoId}?utm_source=extension&utm_medium=menu`,
       });
     },
     () => {
@@ -101,18 +104,28 @@ function openAnalysisPageAction(event) {
   );
 }
 
+function openOptionsPage() {
+  chrome.runtime.openOptionsPage();
+}
+
 /**
  * Create the action menu.
  */
 document.addEventListener('DOMContentLoaded', function () {
-  document
-    .getElementById('tournesol_home')
-    .addEventListener('click', openTournesolHome);
-  document.getElementById('rate_now').addEventListener('click', rateNowAction);
-  document
-    .getElementById('rate_later')
-    .addEventListener('click', addToRateLaterAction);
-  document
-    .getElementById('analysis')
-    .addEventListener('click', openAnalysisPageAction);
+  const tournesolHomeLink = document.getElementById('tournesol_home');
+  const rateNowButton = document.getElementById('rate_now');
+  const rateLaterButton = document.getElementById('rate_later');
+  const analysisButton = document.getElementById('analysis');
+  const preferencesButton = document.getElementById('preferences');
+
+  tournesolHomeLink.addEventListener('click', openTournesolHome);
+  rateNowButton.addEventListener('click', rateNowAction);
+  rateLaterButton.addEventListener('click', addToRateLaterAction);
+  analysisButton.addEventListener('click', openAnalysisPageAction);
+  preferencesButton.addEventListener('click', openOptionsPage);
+
+  rateNowButton.textContent = i18n.getMessage('menuRateNow');
+  rateLaterButton.textContent = i18n.getMessage('menuRateLater');
+  analysisButton.textContent = i18n.getMessage('menuAnalysis');
+  preferencesButton.textContent = i18n.getMessage('menuPreferences');
 });

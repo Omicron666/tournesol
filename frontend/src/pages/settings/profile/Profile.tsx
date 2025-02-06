@@ -8,14 +8,14 @@ import SettingsMenu from 'src/features/settings/SettingsMenu';
 import ProfileForm from 'src/features/settings/profile/ProfileForm';
 import {
   mainSectionBreakpoints,
+  mainSectionGridSpacing,
   settingsMenuBreakpoints,
+  subSectionBreakpoints,
 } from 'src/pages/settings/layout';
 
 function ProfilePage() {
   const { t } = useTranslation();
 
-  // subSectionBreakP can be changed independently of mainSectionBp
-  const subSectionBreakpoints = mainSectionBreakpoints;
   return (
     <>
       <ContentHeader title={`${t('settings.title')} > ${t('profile')}`} />
@@ -29,6 +29,7 @@ function ProfilePage() {
             item
             direction="column"
             alignItems="stretch"
+            spacing={mainSectionGridSpacing}
             {...mainSectionBreakpoints}
           >
             <SettingsSection title={t('profile')} {...subSectionBreakpoints}>

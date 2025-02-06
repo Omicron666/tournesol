@@ -8,6 +8,7 @@ interface CollapseButtonProps {
   expanded: boolean;
   showBadge?: boolean;
   onClick?: (event: React.ChangeEvent<EventTarget>) => void;
+  variant?: 'default' | 'mainOptions';
 }
 
 const DefaultText = () => {
@@ -24,12 +25,12 @@ const CollapseButton = ({
   expanded,
   showBadge = false,
   onClick,
+  variant = 'default',
 }: CollapseButtonProps) => {
   const theme = useTheme();
   return (
     <Badge color="secondary" variant="dot" invisible={!showBadge}>
       <Button
-        color="secondary"
         size="large"
         startIcon={!expanded ? <ExpandMore /> : <ExpandLess />}
         aria-expanded={expanded}
@@ -37,11 +38,11 @@ const CollapseButton = ({
         onClick={onClick}
         sx={{
           padding: '0 8px',
-          marginBottom: '8px',
-          marginLeft: '-8px', // keep the text aligned to the left
-          color: expanded
-            ? theme.palette.secondary.main
-            : theme.palette.action.active,
+          fontSize: variant === 'mainOptions' ? '1.1rem' : undefined,
+          color:
+            expanded || variant == 'mainOptions'
+              ? theme.palette.secondary.main
+              : theme.palette.action.active,
         }}
       >
         {children}

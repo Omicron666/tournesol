@@ -1,14 +1,28 @@
+# This file is an example settings file for Tournesol backend.
+# It should NOT be deployed as is.
+# Follow the instructions below to adapt the configuration
+# and generate secret values.
+
 # to be set to False in production
 DEBUG: True
-# to be changed in production
+
+# TO BE CHANGED IN PRODUCTION
+# Can be generated (for example) with the command below:
+# `openssl rand -base64 48`
 SECRET_KEY: g&*0o49mk(t&*vvdsfsdgfsdgsgesqdg5n*e7ars&$qz*lpi^s$k*
+
 # to be set to the actual hosts on which the API in served in production
 ALLOWED_HOSTS:
     - localhost
     - 127.0.0.1
     - 0.0.0.0
 
-# allow CORS for origin localhost:3000 for local development
+# A list of origins that are authorized to make cross-site HTTP requests.
+#
+# The URL of the front end must be added to this list. For developments with a
+# local front end running on the port 3000, you need to add:
+#   - "http://127.0.0.1:3000"
+#   - "http://localhost:3000"
 CORS_ALLOWED_ORIGINS: []
 CORS_ALLOW_CREDENTIALS: false
 
@@ -20,6 +34,7 @@ DATABASE_NAME: tournesol
 DATABASE_USER: user
 DATABASE_PASSWORD: password
 
+# must be writable by the user running the API
 STATIC_ROOT: /home/user/static
 MEDIA_ROOT: /home/user/media/
 
@@ -29,8 +44,10 @@ LOGIN_URL: /admin/login
 OIDC_ENABLED: true
 # to be set to the actual IDP URI in production
 OIDC_ISS_ENDPOINT: http://localhost:8000/o
-# test key generated with the command below (change it in production)
-# openssl genrsa 4096
+
+# TO BE CHANGED IN PRODUCTION
+# The key can be generated with the command below:
+# `openssl genrsa 4096`
 OIDC_RSA_PRIVATE_KEY: |
     -----BEGIN RSA PRIVATE KEY-----
     MIIJKAIBAAKCAgEAx0m1CHyJjkjCQW3f9pRDXHDWkmJtEGTPLqoxug8TRi6baRKs

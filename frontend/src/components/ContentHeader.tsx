@@ -1,10 +1,6 @@
 import React from 'react';
 import { Box, Chip, Grid, Typography } from '@mui/material';
 
-// Allow to position contents like the footer relatively to the top of the
-// page.
-export const contentHeaderHeight = 61;
-
 /**
  * Display a header.
  *
@@ -15,25 +11,32 @@ export const contentHeaderHeight = 61;
  */
 const ContentHeader = ({
   title,
+  subtitle,
   chipIcon,
   chipLabel,
 }: {
   title: string;
+  subtitle?: React.ReactNode;
   chipIcon?: React.ReactElement;
   chipLabel?: string;
 }) => {
   return (
-    <Box
-      px={[2, 4]}
-      py={2}
-      color="text.secondary"
-      bgcolor="background.menu"
-      borderBottom="1px solid rgba(0, 0, 0, 0.12)"
-      height={contentHeaderHeight}
-    >
+    <Box px={[2, 4]} pt={2} color="text.secondary">
       <Grid container spacing={1} justifyContent="space-between">
         <Grid item>
-          <Typography variant="h4">{title}</Typography>
+          <Typography
+            variant="h4"
+            component="h2"
+            sx={(theme) => ({
+              textDecorationLine: 'underline',
+              textDecorationColor: theme.palette.primary.light,
+              textDecorationThickness: '0.6em',
+              textDecorationSkipInk: 'none',
+              textUnderlineOffset: '-0.1em',
+            })}
+          >
+            {title}
+          </Typography>
         </Grid>
         {/* The <ContentHeader> component could use a list of <Chip> instead
             of only one. */}
@@ -50,6 +53,7 @@ const ContentHeader = ({
           </>
         )}
       </Grid>
+      {subtitle && <Typography mt={1}>{subtitle}</Typography>}
     </Box>
   );
 };

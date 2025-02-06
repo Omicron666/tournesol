@@ -1,0 +1,153 @@
+{
+  "menuRateNow": {
+    "message": "Rate now",
+    "description": "Label of the rate now menu button."
+  },
+  "menuRateLater": {
+    "message": "Rate later",
+    "description": "Label of the rate-later menu button."
+  },
+  "menuAnalysis": {
+    "message": "Analysis",
+    "description": "Label of the analysis menu button."
+  },
+  "menuPreferences": {
+    "message": "Preferences"
+  },
+  "recommendedByTournesol": {
+    "message": "Recommended by Tournesol",
+    "description": "Title of the main Tournesol container."
+  },
+  "learnMore": {
+    "message": "Learn more",
+    "description": "Invite the users to learn more about the project (should be very short)."
+  },
+  "refreshRecommendations": {
+    "message": "Refresh",
+    "description": "Button title to refresh the Tournesol container content with other videos."
+  },
+  "seeMoreRecommendations": {
+    "message": "See more videos",
+    "description": "Button title to expand the Tournesol container to show more recommended videos."
+  },
+  "views": {
+    "message": "$1 views",
+    "description": "Display the number of views of a video."
+  },
+  "publishedToday": {
+    "message": "Today",
+    "description": "Date displayed for vides published today."
+  },
+  "publishedYesterday": {
+    "message": "Yesterday",
+    "description": "Date displayed for video published yesterday."
+  },
+  "publishedSomeDaysAgo": {
+    "message": "$1 days ago",
+    "description": "Date displayed for videos published less than two weeks ago."
+  },
+  "publishedSomeWeeksAgo": {
+    "message": "$1 weeks ago",
+    "description": "Date displayed for videos published between two weeks ago and one month ago."
+  },
+  "publishedAMonthAgo": {
+    "message": "1 month ago",
+    "description": "Date displayed for videos published one month ago."
+  },
+  "publishedSomeMonthsAgo": {
+    "message": "$1 months ago",
+    "description": "Date displayed for videos published between two month ago and one year ago."
+  },
+  "publishedAYearAgo": {
+    "message": "1 year ago",
+    "description": "Date displayed for videos published one year ago."
+  },
+  "publishedSomeYearsAgo": {
+    "message": "$1 years ago",
+    "description": "Date displayed for videos published more than one year ago."
+  },
+  "comparisonsBy": {
+    "message": " $1 comparisons by",
+    "description": "Number of comparisons involving the video."
+  },
+  "comparisonsContributors": {
+    "message": " $1 contributors",
+    "description": "Number of contributors that rated the video."
+  },
+  "reliability": {
+    "message": "Reliable & not misleading",
+    "description": "Full name of the criterion 'reliable'."
+  },
+  "pedagogy": {
+    "message": "Clear & pedagogical",
+    "description": "Full name of the criterion 'pedagogy'."
+  },
+  "importance": {
+    "message": "Important & actionable",
+    "description": "Full name of the criterion 'importance'."
+  },
+  "layman_friendly": {
+    "message": "Layman-friendly",
+    "description": "Full name of the criterion 'layman friendly'."
+  },
+  "entertaining_relaxing": {
+    "message": "Entertaining & relaxing",
+    "description": "Full name of the criterion 'entertaining'."
+  },
+  "engaging": {
+    "message": "Engaging & thought-provoking",
+    "description": "Full name of the criterion 'engaging'."
+  },
+  "diversity_inclusion": {
+    "message": "Diversity & inclusion",
+    "description": "Full name of the criterion 'diversity'."
+  },
+  "better_habits": {
+    "message": "Encourages better habits",
+    "description": "Full name of the criterion 'better habits'."
+  },
+  "backfire_risk": {
+    "message": "Resilience to backfiring risks",
+    "description": "Full name of the criterion 'backfire risk'."
+  },
+  "ratedHigh": {
+    "message": "Rated high:",
+    "description": "Label of the criterion with the highest positive score."
+  },
+  "ratedLow": {
+    "message": "Rated low:",
+    "description": "Label of the criterion with the lowest negative score."
+  },
+  "viewMore": {
+    "message": "View more on tournesol",
+    "Description": "Invite the users to see more results on the Tournesol website."
+  },
+  "securityIconAlt": {
+    "message": "Alert icon",
+    "description": "Alt text of the icon displayed when there's a security advisory banner"
+  },
+  "campaignIconAlt": {
+    "message": "Megaphone icon",
+    "description": "Alt text of the megaphone icon displayed when there's a generic banner"
+  },
+  "closeIconAlt": {
+    "message": "Close icon",
+    "description": "Alt text of the close icon displayed when there's a banner"
+  },
+  "rateNowButtonLabel": {
+    "message": "Rate Now",
+    "description": "Label of the button displayed on video pages."
+  },
+  "rateLaterButtonLabel": {
+    "message": "Rate Later",
+    "description": "Label of the button displayed on video pages."
+  },
+  "rateLaterButtonSuccessLabel": {
+    "message": "Added!",
+    "description": "It replaces the Rate Later button label after a successful add."
+  },
+  "watchOnTournesolButtonLabel": {
+    "message": "Watch on Tournesol",
+    "description": "Label of the button displayed on video pages."
+  }
+}

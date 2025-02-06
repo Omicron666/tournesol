@@ -1,70 +1,48 @@
-from django.db.models import Q
-from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema_field
 from rest_framework.exceptions import ValidationError
-from rest_framework.fields import BooleanField, CharField, SerializerMethodField
+from rest_framework.fields import BooleanField, CharField, DateTimeField
 from rest_framework.serializers import ModelSerializer, Serializer
 
-from tournesol.models import ContributorRating, ContributorRatingCriteriaScore, Entity
+from tournesol.models import ContributorRating
+from tournesol.serializers.criteria_score import ContributorCriteriaScoreSerializer
 from tournesol.serializers.entity import EntityNoExtraFieldSerializer, RelatedEntitySerializer
+from tournesol.serializers.entity_context import EntityContextSerializer
+from tournesol.serializers.poll import CollectiveRatingSerializer, IndividualRatingSerializer
 
 
-class ContributorCriteriaScore(ModelSerializer):
+class ExtendedInvididualRatingSerializer(IndividualRatingSerializer):
+    criteria_scores = ContributorCriteriaScoreSerializer(many=True, read_only=True)
+    last_compared_at = DateTimeField(read_only=True, allow_null=True)
+
     class Meta:
-        model = ContributorRatingCriteriaScore
-        fields = ["criteria", "score", "uncertainty"]
+        model = ContributorRating
+        fields = IndividualRatingSerializer.Meta.fields + ["criteria_scores", "last_compared_at"]
+        read_only_fields = fields
 
 
 class ContributorRatingSerializer(ModelSerializer):
     entity = EntityNoExtraFieldSerializer(read_only=True)
-    criteria_scores = ContributorCriteriaScore(many=True, read_only=True)
-    n_comparisons = SerializerMethodField(
-        help_text="Number of comparisons submitted by the current user about the current video",
+    entity_contexts = EntityContextSerializer(
+        source="entity.single_poll_entity_contexts",
+        read_only=True,
+        many=True
     )
-    last_compared_at = SerializerMethodField(read_only=True)
+    individual_rating = ExtendedInvididualRatingSerializer(source="*", read_only=True)
+    collective_rating = CollectiveRatingSerializer(
+        source="entity.single_poll_rating",
+        read_only=True,
+        allow_null=True
+    )
 
     class Meta:
         model = ContributorRating
         fields = [
             "entity",
+            "entity_contexts",
+            "individual_rating",
+            "collective_rating",
             "is_public",
-            "criteria_scores",
-            "n_comparisons",
-            "last_compared_at",
         ]
-
-    @extend_schema_field(OpenApiTypes.INT)
-    def get_n_comparisons(self, obj):
-        """
-        The number of comparisons is always computed for a specific poll for
-        now.
-        """
-        if hasattr(obj, "n_comparisons"):
-            # Use annotated field if it has been defined by the queryset
-            return obj.n_comparisons
-        return obj.user.comparisons.filter(
-            Q(poll=self.context["poll"])
-            & (Q(entity_1=obj.entity) | Q(entity_2=obj.entity))
-        ).count()
-
-    @extend_schema_field(OpenApiTypes.DATETIME)
-    def get_last_compared_at(self, obj):
-        if hasattr(obj, "last_compared_at"):
-            # Use annotated field if it has been defined by the queryset
-            return obj.last_compared_at
-
-        last_comparison = (
-            obj.user.comparisons.filter(poll=self.context["poll"])
-            .filter(Q(entity_1=obj.entity) | Q(entity_2=obj.entity))
-            .values("datetime_lastedit")
-            .order_by("-datetime_lastedit")[:1]
-        ).first()
-
-        # When a `ContributorRating` doesn't have any related comparison.
-        if not last_comparison:
-            return None
-
-        return last_comparison["datetime_lastedit"]
+        extra_kwargs = {"is_public": {"write_only": True}}
 
     def to_internal_value(self, data):
         """
@@ -84,27 +62,26 @@ class ContributorRatingCreateSerializer(ContributorRatingSerializer):
             "uid",
             "is_public",
             "entity",
-            "criteria_scores",
-            "n_comparisons",
-            "last_compared_at",
+            "entity_contexts",
+            "individual_rating",
+            "collective_rating",
         ]
+        extra_kwargs = ContributorRatingSerializer.Meta.extra_kwargs
 
     def validate(self, attrs):
         uid = attrs.pop("uid")
-        entity_serializer = RelatedEntitySerializer(
-            data={"uid": uid}, context=self.context
-        )
+        entity_serializer = RelatedEntitySerializer(data={"uid": uid}, context=self.context)
         entity_serializer.is_valid(raise_exception=True)
-        entity = Entity.objects.get(uid=uid)
+        entity_id = entity_serializer.validated_data["pk"]
 
         poll = self.context["poll"]
         user = self.context["request"].user
-        if user.contributorvideoratings.filter(poll=poll, entity=entity).exists():
+        if user.contributorvideoratings.filter(poll=poll, entity_id=entity_id).exists():
             raise ValidationError(
                 "A ContributorRating already exists for this (user, entity, poll)",
                 code="unique",
             )
-        attrs["entity"] = entity
+        attrs["entity_id"] = entity_id
         attrs["user"] = user
         return attrs
 

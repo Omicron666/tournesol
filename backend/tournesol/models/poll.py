@@ -1,13 +1,10 @@
-from math import tau as TAU
 from typing import List
 
-import numpy as np
 from django.core.signing import Signer
 from django.db import models
 from django.utils.functional import cached_property
 
 from tournesol.entities import ENTITY_TYPE_CHOICES, ENTITY_TYPE_NAME_TO_CLASS, VideoEntity
-from tournesol.utils.constants import MEHESTAN_MAX_SCALED_SCORE
 
 DEFAULT_POLL_NAME = "videos"
 
@@ -18,6 +15,8 @@ ALGORITHM_CHOICES = (
     (ALGORITHM_LICCHAVI, "Licchavi"),
     (ALGORITHM_MEHESTAN, "Mehestan"),
 )
+
+PROOF_OF_VOTE_KEYWORD = "proof_of_vote"
 
 
 class Poll(models.Model):
@@ -38,12 +37,8 @@ class Poll(models.Model):
         " and comparisons can't be created, updated or deleted by users.",
     )
 
-    sigmoid_scale = models.FloatField(
-        null=True,
-        default=None,
-        help_text="Scaling factor multiplied by score before the sigmoid function is applied."
-        " Updated automatically on each run. (Mehestan only)."
-    )
+    def __str__(self) -> str:
+        return f'Poll "{self.name}"'
 
     @classmethod
     def default_poll(cls) -> "Poll":
@@ -74,29 +69,97 @@ class Poll(models.Model):
         criterias = self.criterias_list
         if len(criterias) > 0:
             return criterias[0]
-        return None
+        raise RuntimeError(f"No criteria in poll {self.name}")
 
     @property
     def entity_cls(self):
         return ENTITY_TYPE_NAME_TO_CLASS[self.entity_type]
 
-    def __str__(self) -> str:
-        return f'Poll "{self.name}"'
-
-    def get_proof_of_vote(self, user_id: int):
+    def user_meets_proof_requirements(self, user_id: int, keyword: str) -> bool:
         """
-        Returns the user_id signed with a signature,
-        derived from the Django SECRET_KEY and the current poll name.
+        Return False if the proof identified by the provided keyword has
+        requirements not satisfied by the provided user, return True instead.
 
-        Should only be provided for the user after they submitted
-        at least 1 comparison in the current poll.
+        Random keywords that are not understood by the poll will always return
+        True.
         """
-        signer = Signer(salt=f"proof_of_vote:{self.name}")
+        from core.models.user import User  # pylint: disable=import-outside-toplevel
+
+        from ..models import Comparison  # pylint: disable=import-outside-toplevel
+
+        # A proof can be obtained only by activated users.
+        try:
+            User.objects.get(id=user_id, is_active=True)
+        except User.DoesNotExist:
+            return False
+
+        # A proof of vote requires at least one comparison made.
+        if keyword == PROOF_OF_VOTE_KEYWORD:
+            comparisons = Comparison.objects.filter(poll=self, user_id=user_id)
+
+            if not comparisons.exists():
+                return False
+
+        return True
+
+    def get_user_proof(self, user_id: int, keyword: str):
+        """
+        Return the user_id and its signature, derived from the current poll
+        name and the specified keyword.
+        """
+        signer = Signer(salt=f"{keyword}:{self.name}")
         return signer.sign(f"{user_id:05d}")
 
-    @property
-    def scale_function(self):
-        if self.algorithm == ALGORITHM_MEHESTAN and self.sigmoid_scale is not None:
-            return lambda x: (4 * MEHESTAN_MAX_SCALED_SCORE / TAU) * \
-                             np.arctan(self.sigmoid_scale * x)
-        return lambda x: x
+    def entity_has_unsafe_context(self, entity_metadata) -> tuple:
+        """
+        If the entity metadata match at least one "unsafe" context predicate
+        of this poll, return True and the context's origin, False instead.
+        """
+
+        # The entity contexts are expected to be already prefetched.
+        for entity_context in self.all_entity_contexts.all():
+            if not entity_context.enabled or not entity_context.unsafe:
+                continue
+
+            matching = []
+
+            for field, value in entity_context.predicate.items():
+                try:
+                    matching.append(entity_metadata[field] == value)
+                except KeyError:
+                    pass
+
+            if matching and all(matching):
+                return True, entity_context.origin
+
+        return False, None
+
+    def get_entity_contexts(self, entity_metadata, prefetched_contexts=None) -> list:
+        """
+        Return a list of all enabled contexts matching the given entity
+        metadata.
+        """
+        contexts = []
+
+        if prefetched_contexts is not None:
+            available_contexts = prefetched_contexts
+        else:
+            available_contexts = self.all_entity_contexts.all()
+
+        # The entity contexts are expected to be already prefetched.
+        for entity_context in available_contexts:
+            if not entity_context.enabled:
+                continue
+
+            matching = []
+
+            for field, value in entity_context.predicate.items():
+                try:
+                    matching.append(entity_metadata[field] == value)
+                except KeyError:
+                    pass
+
+            if matching and all(matching):
+                contexts.append(entity_context)
+
+        return contexts

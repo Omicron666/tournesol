@@ -34,7 +34,6 @@ paths:
   /accounts/profile/:
     get:
       operationId: accounts_profile_retrieve
-      description: Get or set user profile.
       tags:
       - accounts
       security:
@@ -49,7 +48,6 @@ paths:
           description: ''
     post:
       operationId: accounts_profile_create
-      description: Get or set user profile.
       tags:
       - accounts
       requestBody:
@@ -76,7 +74,6 @@ paths:
           description: ''
     put:
       operationId: accounts_profile_update
-      description: Get or set user profile.
       tags:
       - accounts
       requestBody:
@@ -103,7 +100,6 @@ paths:
           description: ''
     patch:
       operationId: accounts_profile_partial_update
-      description: Get or set user profile.
       tags:
       - accounts
       requestBody:
@@ -300,6 +296,102 @@ paths:
               schema:
                 $ref: '#/components/schemas/VerifyRegistration'
           description: ''
+  /backoffice/banners/:
+    get:
+      operationId: backoffice_banners_list
+      description: List all active banners.
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      tags:
+      - backoffice
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBannerList'
+          description: ''
+  /backoffice/events/:
+    get:
+      operationId: backoffice_events_list
+      description: List all scheduled Tournesol events.
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - in: query
+        name: event_type
+        schema:
+          type: string
+          enum:
+          - live
+          - talk
+        description: Filter the events by type.
+      tags:
+      - backoffice
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTournesolEventList'
+          description: ''
+  /backoffice/faq/:
+    get:
+      operationId: backoffice_faq_list
+      description: List all questions and their answers, translated in a specific
+        language.
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      tags:
+      - backoffice
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFAQEntryList'
+          description: ''
   /domains/:
     get:
       operationId: domains_list
@@ -470,36 +562,6 @@ paths:
                 type: string
                 format: binary
           description: ''
-  /faq/:
-    get:
-      operationId: faq_list
-      description: List all questions and their answers, translated in a specific
-        language.
-      parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
-      tags:
-      - faq
-      security:
-      - oauth2:
-        - read write groups
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedFAQEntryList'
-          description: ''
   /polls/{name}/:
     get:
       operationId: polls_retrieve
@@ -625,6 +687,13 @@ paths:
         description: If true, entities considered as unsafe recommendations because
           of a low score or due to too few contributions will be included.
       - in: query
+        name: exclude_compared_entities
+        schema:
+          type: boolean
+          default: false
+        description: If true and a user is authenticated, then entities compared by
+          the user will be removed from the response
+      - in: query
         name: weights
         schema:
           type: object
@@ -688,9 +757,85 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedRecommendationList'
           description: ''
-  /preview/.*:
+  /polls/{name}/recommendations/random/:
     get:
-      operationId: preview_.*_retrieve
+      operationId: polls_recommendations_random_list
+      description: Return a random list of recommended entities.
+      parameters:
+      - in: path
+        name: name
+        schema:
+          type: string
+        required: true
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - in: query
+        name: bundle
+        schema:
+          type: integer
+        description: Successive calls can return the same cached results. Vary this
+          parameter to request new results.
+      - in: query
+        name: date_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: date_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: metadata
+        schema:
+          type: object
+          additionalProperties: {}
+        description: Filter by one or more metadata.
+        style: deepObject
+        examples:
+          NoMetadataFilter:
+            summary: No metadata filter
+          Videos-SomeExamples:
+            value:
+              language:
+              - en
+              - pt
+              uploader: Kurzgesagt – In a Nutshell
+            summary: Videos - some examples
+          Videos-VideosOf8MinutesOrLess(480Sec):
+            value:
+              duration:lte:int: '480'
+            summary: Videos - videos of 8 minutes or less (480 sec)
+          Candidates-SomeExamples:
+            value:
+              name: A candidate full name
+              youtube_channel_id: channel ID
+            summary: Candidates - some examples
+      tags:
+      - polls
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRecommendationBaseList'
+          description: ''
+  /preview/.:
+    get:
+      operationId: preview_._retrieve
       description: Default website preview.
       tags:
       - preview
@@ -700,7 +845,35 @@ paths:
       responses:
         '200':
           content:
-            application/json:
+            image/*:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /preview/comparison/:
+    get:
+      operationId: preview_comparison_retrieve
+      description: Preview of the website comparison page.
+      parameters:
+      - in: query
+        name: uidA
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: uidB
+        schema:
+          type: string
+        required: true
+      tags:
+      - preview
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            image/*:
               schema:
                 type: string
                 format: binary
@@ -723,7 +896,92 @@ paths:
       responses:
         '200':
           content:
-            application/json:
+            image/*:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /preview/faq/:
+    get:
+      operationId: preview_faq_retrieve
+      description: FAQ preview
+      parameters:
+      - in: query
+        name: scrollTo
+        schema:
+          type: string
+      tags:
+      - preview
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /preview/feed/top/:
+    get:
+      operationId: preview_feed_top_retrieve
+      description: |-
+        Preview of a Recommendations page.
+
+        Returns a HTTP redirection to format the query parameters to match those
+        used by the polls API.
+      tags:
+      - preview
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /preview/recommendations/:
+    get:
+      operationId: preview_recommendations_retrieve
+      description: |-
+        Preview of a Recommendations page.
+
+        Returns a HTTP redirection to format the query parameters to match those
+        used by the polls API.
+      tags:
+      - preview
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /preview/search/:
+    get:
+      operationId: preview_search_retrieve
+      description: |-
+        Preview of a Recommendations page.
+
+        Returns a HTTP redirection to format the query parameters to match those
+        used by the polls API.
+      tags:
+      - preview
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            image/jpeg:
               schema:
                 type: string
                 format: binary
@@ -760,6 +1018,7 @@ paths:
           - br
           - bs
           - ca
+          - ckb
           - cs
           - cy
           - da
@@ -876,6 +1135,12 @@ paths:
     get:
       operationId: stats_retrieve
       description: Fetch all Tournesol's public statistics.
+      parameters:
+      - in: query
+        name: poll
+        schema:
+          type: string
+        description: Only get stats related to this poll.
       tags:
       - stats
       security:
@@ -942,6 +1207,13 @@ paths:
         description: If true, entities considered as unsafe recommendations because
           of a low score or due to too few contributions will be included.
       - in: query
+        name: exclude_compared_entities
+        schema:
+          type: boolean
+          default: false
+        description: If true and a user is authenticated, then entities compared by
+          the user will be removed from the response
+      - in: query
         name: weights
         schema:
           type: object
@@ -1000,8 +1272,9 @@ paths:
     delete:
       operationId: users_me_destroy
       description: |-
-        Delete and logout the authenticated user.
-        All related resources are also deleted: comparisons, rate-later list, access tokens, etc.
+        Deactivate and logout the authenticated user. All related resources (comparisons, etc.)
+        will be deleted separately by 'delete_inactive_users' after a delay, in order to avoid
+        conflicts with ml-train currently running.
       tags:
       - users
       security:
@@ -1154,6 +1427,49 @@ paths:
               schema:
                 $ref: '#/components/schemas/ComparisonUpdate'
           description: ''
+    patch:
+      operationId: users_me_comparisons_partial_update
+      description: Partially update a comparison made by the logged user, in the given
+        poll.
+      parameters:
+      - in: path
+        name: poll_name
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: uid_a
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: uid_b
+        schema:
+          type: string
+        required: true
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedComparisonUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedComparisonUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedComparisonUpdateRequest'
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComparisonUpdate'
+          description: ''
     delete:
       operationId: users_me_comparisons_destroy
       description: Delete a comparison made by the logged user, in the given poll
@@ -1255,7 +1571,8 @@ paths:
         schema:
           type: string
         description: 'Order the results by: last_compared_at, -last_compared_at, n_comparisons,
-          -n_comparisons, or any allowed metadata field.'
+          -n_comparisons, collective_score, -collective_score, individual_score, -individual_score,
+          or any allowed metadata field.'
       tags:
       - users
       security:
@@ -1595,7 +1912,7 @@ paths:
         name: inconsistency_threshold
         schema:
           type: number
-          format: float
+          format: double
           default: 5.0
         description: Comparisons with an inconsistency score above this threshold
           are considered inconsistent and listed in the response (max. 100 responses).
@@ -1619,16 +1936,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/ScoreInconsistencies'
           description: ''
-  /users/me/proof_of_votes/{poll_name}/:
+  /users/me/proof/{poll_name}/:
     get:
-      operationId: users_me_proof_of_votes_retrieve
-      description: API for retrieving the logged user's proof_of_vote in a given poll.
+      operationId: users_me_proof_retrieve
+      description: |-
+        Return a cryptographic signature of the user id, associated to the
+        selected poll and optionally to the specified keyword.
+
+        This signature can act as a proof for the users to guarantee they have an
+        activated account, and optionally that they meet specific requirements
+        that can be poll dependant.
+
+        The query parameter `keyword` identifies the requested proof, and its set
+        of requirements that are expected to be met by the logged-in user. Each
+        set of requirements includes at least having an activated user account.
+
+        List of accepted keywords and matching conditions:
+
+            "" (empty): Same as "activated".
+
+            "activated": Only check if the user has an activated account.
+
+            "proof_of_vote": Additionally check if the user has participated in
+                             the selected poll.
       parameters:
       - in: path
         name: poll_name
         schema:
           type: string
         required: true
+      - in: query
+        name: keyword
+        schema:
+          type: string
+        description: A keyword identifying a proof. Used as an input by the signing
+          algorithm.
       tags:
       - users
       security:
@@ -1810,6 +2152,13 @@ paths:
         description: If true, entities considered as unsafe recommendations because
           of a low score or due to too few contributions will be included.
       - in: query
+        name: exclude_compared_entities
+        schema:
+          type: boolean
+          default: false
+        description: If true and a user is authenticated, then entities compared by
+          the user will be removed from the response
+      - in: query
         name: weights
         schema:
           type: object
@@ -1864,6 +2213,154 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedContributorRecommendationsList'
           description: ''
+  /users/me/settings/:
+    get:
+      operationId: users_me_settings_retrieve
+      description: Get the logged-in user's settings.
+      tags:
+      - users
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournesolUserSettings'
+          description: ''
+    put:
+      operationId: users_me_settings_update
+      description: Replace the logged-in user's settings by new ones.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TournesolUserSettingsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TournesolUserSettingsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TournesolUserSettingsRequest'
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournesolUserSettings'
+          description: ''
+    patch:
+      operationId: users_me_settings_partial_update
+      description: Update a subset of the logged-in user's settings.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTournesolUserSettingsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTournesolUserSettingsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTournesolUserSettingsRequest'
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournesolUserSettings'
+          description: ''
+  /users/me/subsamples/{poll_name}/:
+    get:
+      operationId: users_me_subsamples_list
+      description: |-
+        Return a sub-sample of entities rated by the logged-in user.
+
+        Entities are ranked by the individual score computed for the poll's
+        main criterion, in the descending order.
+      parameters:
+      - in: path
+        name: poll_name
+        schema:
+          type: string
+        required: true
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - in: query
+        name: ntile
+        schema:
+          type: integer
+          default: 20
+        description: Divide the rated entities into `ntile` ranked buckets, then pick
+          one entity from each bucket.
+      tags:
+      - users
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSubSampleList'
+          description: ''
+  /users/me/suggestions/{poll_name}/tocompare/:
+    get:
+      operationId: users_me_suggestions_tocompare_list
+      description: |-
+        Suggest a list of entities to compare to the logged-in user.
+
+        The suggestion strategy is determined by the `strategy` query parameter.
+      parameters:
+      - in: path
+        name: poll_name
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: strategy
+        schema:
+          type: string
+          enum:
+          - classic
+          default: classic
+        description: The strategy used to suggest a entities to compare.
+      tags:
+      - users
+      security:
+      - oauth2:
+        - read write groups
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EntityToCompare'
+          description: ''
   /users/me/unconnected_entities/{poll_name}/{uid}/:
     get:
       operationId: users_me_unconnected_entities_list
@@ -1893,6 +2390,14 @@ paths:
         description: The initial index from which to return the results.
         schema:
           type: integer
+      - in: query
+        name: strict
+        schema:
+          type: boolean
+          default: true
+        description: Set to 'false' to include entities connected to the target entity.
+          In this case, the returned list contains first all unconnected entities,
+          then connected entities sorted by decreasing distance to the target entity.
       tags:
       - users
       security:
@@ -1903,7 +2408,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedEntityNoExtraFieldList'
+                $ref: '#/components/schemas/PaginatedUnconnectedEntityList'
           description: ''
   /users/me/vouchers/:
     post:
@@ -1988,120 +2493,6 @@ paths:
                   $ref: '#/components/schemas/ReadOnlyVoucher'
           description: ''
   /video/:
-    get:
-      operationId: video_list
-      description: Retrieve a list of recommended videos, sorted by decreasing total
-        score.
-      parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
-      - in: query
-        name: search
-        schema:
-          type: string
-      - in: query
-        name: language
-        schema:
-          type: string
-        description: Accepted languages separated by commas (e.g. 'en,fr,de'). If
-          empty, accept all languages.
-      - in: query
-        name: uploader
-        schema:
-          type: string
-      - in: query
-        name: date_lte
-        schema:
-          type: string
-          format: date-time
-        description: "Return videos published **before** this date.  \nAccepted formats:\
-          \ ISO 8601 datetime (e.g `2021-12-01T12:45:00`) or legacy: `dd-mm-yy-hh-mm-ss`."
-      - in: query
-        name: date_gte
-        schema:
-          type: string
-          format: date-time
-        description: "Return videos published **after** this date.  \nAccepted formats:\
-          \ ISO 8601 datetime (e.g `2021-12-01T12:45:00`) or legacy: `dd-mm-yy-hh-mm-ss`."
-      - in: query
-        name: unsafe
-        schema:
-          type: boolean
-        description: If true, videos considered as unsafe recommendations because
-          of a low score or due to too few contributions will be included.
-      - in: query
-        name: largely_recommended
-        schema:
-          type: integer
-        description: Weight for criteria 'largely_recommended', between 0 and 100
-      - in: query
-        name: reliability
-        schema:
-          type: integer
-        description: Weight for criteria 'reliability', between 0 and 100
-      - in: query
-        name: importance
-        schema:
-          type: integer
-        description: Weight for criteria 'importance', between 0 and 100
-      - in: query
-        name: engaging
-        schema:
-          type: integer
-        description: Weight for criteria 'engaging', between 0 and 100
-      - in: query
-        name: pedagogy
-        schema:
-          type: integer
-        description: Weight for criteria 'pedagogy', between 0 and 100
-      - in: query
-        name: layman_friendly
-        schema:
-          type: integer
-        description: Weight for criteria 'layman_friendly', between 0 and 100
-      - in: query
-        name: diversity_inclusion
-        schema:
-          type: integer
-        description: Weight for criteria 'diversity_inclusion', between 0 and 100
-      - in: query
-        name: backfire_risk
-        schema:
-          type: integer
-        description: Weight for criteria 'backfire_risk', between 0 and 100
-      - in: query
-        name: better_habits
-        schema:
-          type: integer
-        description: Weight for criteria 'better_habits', between 0 and 100
-      - in: query
-        name: entertaining_relaxing
-        schema:
-          type: integer
-        description: Weight for criteria 'entertaining_relaxing', between 0 and 100
-      tags:
-      - video
-      security:
-      - oauth2:
-        - read write groups
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedVideoSerializerWithCriteriaList'
-          description: ''
     post:
       operationId: video_create
       description: Add a video to the db if it does not already exist.
@@ -2129,29 +2520,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Video'
           description: ''
-  /video/{video_id}/:
-    get:
-      operationId: video_retrieve
-      description: Retrieve details about a single video.
-      parameters:
-      - in: path
-        name: video_id
-        schema:
-          type: string
-        required: true
-      tags:
-      - video
-      security:
-      - oauth2:
-        - read write groups
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VideoSerializerWithCriteria'
-          description: ''
 components:
   schemas:
     ActiveUsersStatistics:
@@ -2161,9 +2529,54 @@ components:
           type: integer
         joined_last_month:
           type: integer
+        joined_last_30_days:
+          type: integer
       required:
+      - joined_last_30_days
       - joined_last_month
       - total
+    Banner:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The banner's name.
+          maxLength: 255
+        date_start:
+          type: string
+          format: date-time
+          description: Date on which the banner should be returned by the API.
+        date_end:
+          type: string
+          format: date-time
+          description: After this date the banner should not be returned by the API.
+        title:
+          type: string
+        text:
+          type: string
+        action_label:
+          type: string
+        action_link:
+          type: string
+        priority:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Allows to order the banners.
+        security_advisory:
+          type: boolean
+          description: If True the banner is a security announcement.
+      required:
+      - action_label
+      - action_link
+      - date_end
+      - date_start
+      - name
+      - text
+      - title
+    BlankEnum:
+      enum:
+      - ''
     ChangePassword:
       type: object
       properties:
@@ -2191,6 +2604,34 @@ components:
       - old_password
       - password
       - password_confirm
+    CollectiveRating:
+      type: object
+      properties:
+        n_comparisons:
+          type: integer
+          readOnly: true
+          description: Total number of pairwise comparisons for this entityfrom certified
+            contributors
+        n_contributors:
+          type: integer
+          readOnly: true
+          description: Total number of certified contributors who rated the entity
+        tournesol_score:
+          type: number
+          format: double
+          readOnly: true
+          nullable: true
+          description: The aggregated score of the main criterion for all users, in
+            a specific poll.
+        unsafe:
+          allOf:
+          - $ref: '#/components/schemas/UnsafeStatus'
+          readOnly: true
+      required:
+      - n_comparisons
+      - n_contributors
+      - tournesol_score
+      - unsafe
     ComparedEntitiesStatistics:
       type: object
       properties:
@@ -2198,7 +2639,10 @@ components:
           type: integer
         added_last_month:
           type: integer
+        added_last_30_days:
+          type: integer
       required:
+      - added_last_30_days
       - added_last_month
       - total
     Comparison:
@@ -2215,19 +2659,33 @@ components:
           $ref: '#/components/schemas/RelatedEntity'
         entity_b:
           $ref: '#/components/schemas/RelatedEntity'
+        entity_a_contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+          default: []
+        entity_b_contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+          default: []
         criteria_scores:
           type: array
           items:
             $ref: '#/components/schemas/ComparisonCriteriaScore'
         duration_ms:
           type: number
-          format: float
+          format: double
           nullable: true
           description: Time it took to rate the videos (in milliseconds)
       required:
       - criteria_scores
       - entity_a
+      - entity_a_contexts
       - entity_b
+      - entity_b_contexts
     ComparisonCriteriaScore:
       type: object
       properties:
@@ -2237,17 +2695,21 @@ components:
           maxLength: 32
         score:
           type: number
-          format: float
-          maximum: 10.0
-          minimum: -10.0
+          format: double
           description: Score for the given comparison
+        score_max:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+          description: The absolute value of the maximum score.
         weight:
           type: number
-          format: float
+          format: double
           description: Weight of the comparison
       required:
       - criteria
       - score
+      - score_max
     ComparisonCriteriaScoreRequest:
       type: object
       properties:
@@ -2258,17 +2720,21 @@ components:
           maxLength: 32
         score:
           type: number
-          format: float
-          maximum: 10.0
-          minimum: -10.0
+          format: double
           description: Score for the given comparison
+        score_max:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+          description: The absolute value of the maximum score.
         weight:
           type: number
-          format: float
+          format: double
           description: Weight of the comparison
       required:
       - criteria
       - score
+      - score_max
     ComparisonRequest:
       type: object
       description: |-
@@ -2289,13 +2755,25 @@ components:
             $ref: '#/components/schemas/ComparisonCriteriaScoreRequest'
         duration_ms:
           type: number
-          format: float
+          format: double
           nullable: true
           description: Time it took to rate the videos (in milliseconds)
       required:
       - criteria_scores
       - entity_a
       - entity_b
+    ComparisonUi_weeklyCollectiveGoalDisplayEnum:
+      enum:
+      - ALWAYS
+      - EMBEDDED_ONLY
+      - WEBSITE_ONLY
+      - NEVER
+      type: string
+      description: |-
+        * `ALWAYS` - always
+        * `EMBEDDED_ONLY` - embedded_only
+        * `WEBSITE_ONLY` - website_only
+        * `NEVER` - never
     ComparisonUpdate:
       type: object
       description: |-
@@ -2312,7 +2790,7 @@ components:
             $ref: '#/components/schemas/ComparisonCriteriaScore'
         duration_ms:
           type: number
-          format: float
+          format: double
           nullable: true
           description: Time it took to rate the videos (in milliseconds)
         entity_a:
@@ -2323,10 +2801,24 @@ components:
           allOf:
           - $ref: '#/components/schemas/RelatedEntity'
           readOnly: true
+        entity_a_contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+          default: []
+        entity_b_contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+          default: []
       required:
       - criteria_scores
       - entity_a
+      - entity_a_contexts
       - entity_b
+      - entity_b_contexts
     ComparisonUpdateRequest:
       type: object
       description: |-
@@ -2343,7 +2835,7 @@ components:
             $ref: '#/components/schemas/ComparisonCriteriaScoreRequest'
         duration_ms:
           type: number
-          format: float
+          format: double
           nullable: true
           description: Time it took to rate the videos (in milliseconds)
       required:
@@ -2355,7 +2847,13 @@ components:
           type: integer
         added_last_month:
           type: integer
+        added_last_30_days:
+          type: integer
+        added_current_week:
+          type: integer
       required:
+      - added_current_week
+      - added_last_30_days
       - added_last_month
       - total
     ContributorCriteriaCorrelations:
@@ -2372,14 +2870,14 @@ components:
             type: array
             items:
               type: number
-              format: float
+              format: double
         slopes:
           type: array
           items:
             type: array
             items:
               type: number
-              format: float
+              format: double
       required:
       - correlations
       - criterias
@@ -2393,12 +2891,12 @@ components:
           maxLength: 32
         score:
           type: number
-          format: float
+          format: double
           description: Score for the given criteria, after individual and poll scalings
             applied
         uncertainty:
           type: number
-          format: float
+          format: double
           description: Uncertainty about the criteria score
       required:
       - criteria
@@ -2412,12 +2910,12 @@ components:
           maxLength: 32
         score:
           type: number
-          format: float
+          format: double
           description: Score for the given criteria, after individual and poll scalings
             applied
         uncertainty:
           type: number
-          format: float
+          format: double
           description: Uncertainty about the criteria score
       required:
       - criteria
@@ -2428,57 +2926,51 @@ components:
           allOf:
           - $ref: '#/components/schemas/EntityNoExtraField'
           readOnly: true
-        is_public:
-          type: boolean
-          description: Should the rating be public?
-        criteria_scores:
+        entity_contexts:
           type: array
           items:
-            $ref: '#/components/schemas/ContributorCriteriaScore'
+            $ref: '#/components/schemas/EntityContext'
           readOnly: true
-        n_comparisons:
-          type: integer
+        individual_rating:
+          allOf:
+          - $ref: '#/components/schemas/ExtendedInvididualRating'
           readOnly: true
-          description: Number of comparisons submitted by the current user about the
-            current video
-        last_compared_at:
-          type: string
-          format: date-time
+        collective_rating:
+          allOf:
+          - $ref: '#/components/schemas/CollectiveRating'
           readOnly: true
+          nullable: true
       required:
-      - criteria_scores
+      - collective_rating
       - entity
-      - last_compared_at
-      - n_comparisons
+      - entity_contexts
+      - individual_rating
     ContributorRatingCreate:
       type: object
       properties:
-        is_public:
-          type: boolean
-          description: Should the rating be public?
         entity:
           allOf:
           - $ref: '#/components/schemas/EntityNoExtraField'
           readOnly: true
-        criteria_scores:
+        entity_contexts:
           type: array
           items:
-            $ref: '#/components/schemas/ContributorCriteriaScore'
+            $ref: '#/components/schemas/EntityContext'
           readOnly: true
-        n_comparisons:
-          type: integer
+        individual_rating:
+          allOf:
+          - $ref: '#/components/schemas/ExtendedInvididualRating'
           readOnly: true
-          description: Number of comparisons submitted by the current user about the
-            current video
-        last_compared_at:
-          type: string
-          format: date-time
+        collective_rating:
+          allOf:
+          - $ref: '#/components/schemas/CollectiveRating'
           readOnly: true
+          nullable: true
       required:
-      - criteria_scores
+      - collective_rating
       - entity
-      - last_compared_at
-      - n_comparisons
+      - entity_contexts
+      - individual_rating
     ContributorRatingCreateRequest:
       type: object
       properties:
@@ -2489,6 +2981,7 @@ components:
           maxLength: 144
         is_public:
           type: boolean
+          writeOnly: true
           description: Should the rating be public?
       required:
       - uid
@@ -2497,6 +2990,7 @@ components:
       properties:
         is_public:
           type: boolean
+          writeOnly: true
           description: Should the rating be public?
     ContributorRatingUpdateAll:
       type: object
@@ -2507,57 +3001,36 @@ components:
       - is_public
     ContributorRecommendations:
       type: object
-      description: |-
-        An entity recommended by a user.
-
-        In addition to the fields inherited from `RecommendationSerializer`, this
-        serializer also display the public status of the `ContributorRating`
-        related to the trio poll / entity / user.
-
-        Note that the fields `n_comparisons` and `n_contributors` contain
-        the collective values, and are not specific to the user.
+      description: An entity recommended by a user.
       properties:
-        uid:
-          type: string
-          description: A unique identifier, build with a namespace and an external
-            id.
-          maxLength: 144
-        type:
-          $ref: '#/components/schemas/TypeEnum'
-        n_comparisons:
-          type: integer
-        n_contributors:
-          type: integer
-        metadata:
-          type: object
-          additionalProperties: {}
+        entity:
+          allOf:
+          - $ref: '#/components/schemas/RelatedEntity'
           readOnly: true
-        total_score:
-          type: number
-          format: float
-        tournesol_score:
-          type: number
-          format: float
-          nullable: true
-          description: The aggregated of all criteria for all users in a specific
-            poll.
-        criteria_scores:
+        entity_contexts:
           type: array
           items:
-            $ref: '#/components/schemas/ContributorCriteriaScore'
+            $ref: '#/components/schemas/EntityContext'
           readOnly: true
-        is_public:
-          type: boolean
+        collective_rating:
+          allOf:
+          - $ref: '#/components/schemas/ExtendedCollectiveRating'
+          readOnly: true
+          nullable: true
+        recommendation_metadata:
+          allOf:
+          - $ref: '#/components/schemas/RecommendationMetadata'
+          readOnly: true
+        individual_rating:
+          allOf:
+          - $ref: '#/components/schemas/IndividualRatingWithScores'
           readOnly: true
       required:
-      - criteria_scores
-      - is_public
-      - metadata
-      - n_comparisons
-      - n_contributors
-      - total_score
-      - type
-      - uid
+      - collective_rating
+      - entity
+      - entity_contexts
+      - individual_rating
+      - recommendation_metadata
     CriteriaDistributionScore:
       type: object
       properties:
@@ -2567,12 +3040,12 @@ components:
           type: array
           items:
             type: number
-            format: float
+            format: double
         bins:
           type: array
           items:
             type: number
-            format: float
+            format: double
       required:
       - bins
       - criteria
@@ -2637,16 +3110,6 @@ components:
           minLength: 1
       required:
       - login
-    DegreeOfPoliticalEngagementEnum:
-      enum:
-      - Not Specified
-      - None
-      - Light
-      - Interested
-      - Engaged
-      - Activist
-      - Professional
-      type: string
     EmailDomain:
       type: object
       properties:
@@ -2657,7 +3120,12 @@ components:
         status:
           allOf:
           - $ref: '#/components/schemas/StatusEnum'
-          description: Status of the domain.
+          description: |-
+            Status of the domain.
+
+            * `RJ` - Rejected
+            * `ACK` - Accepted
+            * `PD` - Pending
       required:
       - domain
     Entity:
@@ -2669,31 +3137,69 @@ components:
       properties:
         uid:
           type: string
+          readOnly: true
           description: A unique identifier, build with a namespace and an external
             id.
-          maxLength: 144
         type:
-          $ref: '#/components/schemas/TypeEnum'
+          allOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          readOnly: true
         metadata:
           type: object
           additionalProperties: {}
-        tournesol_score:
-          type: number
-          format: float
           readOnly: true
-          nullable: true
-          description: The aggregated of all criteria for all users in a specific
-            poll.
         polls:
           type: array
           items:
             $ref: '#/components/schemas/EntityPoll'
           readOnly: true
       required:
+      - metadata
       - polls
-      - tournesol_score
       - type
       - uid
+    EntityContext:
+      type: object
+      properties:
+        origin:
+          allOf:
+          - $ref: '#/components/schemas/OriginEnum'
+          description: |-
+            The persons who want to share this context with the rest of the community.
+
+            * `ASSOCIATION` - Association
+            * `CONTRIBUTORS` - Contributors
+        unsafe:
+          type: boolean
+          description: If True, this context will make the targeted entities unsafe.
+        text:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - text
+    EntityContextRequest:
+      type: object
+      properties:
+        origin:
+          allOf:
+          - $ref: '#/components/schemas/OriginEnum'
+          description: |-
+            The persons who want to share this context with the rest of the community.
+
+            * `ASSOCIATION` - Association
+            * `CONTRIBUTORS` - Contributors
+        unsafe:
+          type: boolean
+          description: If True, this context will make the targeted entities unsafe.
+        text:
+          type: string
+          minLength: 1
+      required:
+      - text
     EntityCriteriaDistribution:
       type: object
       description: An Entity serializer that show distribution of score for a given
@@ -2712,17 +3218,6 @@ components:
           type: object
           additionalProperties: {}
           readOnly: true
-        tournesol_score:
-          type: number
-          format: float
-          readOnly: true
-          nullable: true
-          description: The aggregated of all criteria for all users in a specific
-            poll.
-        rating_n_contributors:
-          type: integer
-          readOnly: true
-          description: Total number of certified contributors who rated the video
         criteria_scores_distributions:
           type: array
           items:
@@ -2731,8 +3226,6 @@ components:
       required:
       - criteria_scores_distributions
       - metadata
-      - rating_n_contributors
-      - tournesol_score
       - type
       - uid
     EntityCriteriaScore:
@@ -2744,7 +3237,7 @@ components:
           maxLength: 32
         score:
           type: number
-          format: float
+          format: double
           description: Score of the given criteria
       required:
       - criteria
@@ -2781,11 +3274,93 @@ components:
       required:
       - criteria_scores
       - name
+    EntityToCompare:
+      type: object
+      properties:
+        entity:
+          $ref: '#/components/schemas/RelatedEntity'
+        collective_rating:
+          allOf:
+          - $ref: '#/components/schemas/CollectiveRating'
+          readOnly: true
+      required:
+      - collective_rating
+      - entity
     EntityTypeEnum:
       enum:
       - video
       - candidate_fr_2022
       type: string
+      description: |-
+        * `video` - Video
+        * `candidate_fr_2022` - Candidate (FR 2022)
+    EventTypeEnum:
+      enum:
+      - talk
+      - live
+      type: string
+      description: |-
+        * `talk` - Tournesol Talk
+        * `live` - Tournesol Live
+    ExtendedCollectiveRating:
+      type: object
+      properties:
+        n_comparisons:
+          type: integer
+          readOnly: true
+          description: Total number of pairwise comparisons for this entityfrom certified
+            contributors
+        n_contributors:
+          type: integer
+          readOnly: true
+          description: Total number of certified contributors who rated the entity
+        tournesol_score:
+          type: number
+          format: double
+          readOnly: true
+          nullable: true
+          description: The aggregated score of the main criterion for all users, in
+            a specific poll.
+        unsafe:
+          allOf:
+          - $ref: '#/components/schemas/UnsafeStatus'
+          readOnly: true
+        criteria_scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityCriteriaScore'
+      required:
+      - criteria_scores
+      - n_comparisons
+      - n_contributors
+      - tournesol_score
+      - unsafe
+    ExtendedInvididualRating:
+      type: object
+      properties:
+        is_public:
+          type: boolean
+          readOnly: true
+          description: Should the rating be public?
+        n_comparisons:
+          type: integer
+          readOnly: true
+          default: 0
+        criteria_scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContributorCriteriaScore'
+          readOnly: true
+        last_compared_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - criteria_scores
+      - is_public
+      - last_compared_at
+      - n_comparisons
     FAQEntry:
       type: object
       description: A translated question with its translated answer.
@@ -2803,14 +3378,40 @@ components:
       - answer
       - name
       - question
-    GenderEnum:
+    FeedForyou_dateEnum:
       enum:
-      - Not Specified
-      - Non-binary
-      - Other
-      - Female
-      - Male
+      - TODAY
+      - WEEK
+      - MONTH
+      - YEAR
+      - ALL_TIME
       type: string
+      description: |-
+        * `TODAY` - today
+        * `WEEK` - week
+        * `MONTH` - month
+        * `YEAR` - year
+        * `ALL_TIME` - all_time
+    GeneralUserSettings:
+      type: object
+      description: The general user settings that are not related to Tournesol polls.
+      properties:
+        notifications__lang:
+          $ref: '#/components/schemas/Notifications_langEnum'
+        notifications_email__research:
+          type: boolean
+        notifications_email__new_features:
+          type: boolean
+    GeneralUserSettingsRequest:
+      type: object
+      description: The general user settings that are not related to Tournesol polls.
+      properties:
+        notifications__lang:
+          $ref: '#/components/schemas/Notifications_langEnum'
+        notifications_email__research:
+          type: boolean
+        notifications_email__new_features:
+          type: boolean
     GivenVoucher:
       type: object
       description: |-
@@ -2842,6 +3443,40 @@ components:
           minLength: 1
       required:
       - to
+    IndividualRating:
+      type: object
+      properties:
+        is_public:
+          type: boolean
+          readOnly: true
+          description: Should the rating be public?
+        n_comparisons:
+          type: integer
+          readOnly: true
+          default: 0
+      required:
+      - is_public
+      - n_comparisons
+    IndividualRatingWithScores:
+      type: object
+      properties:
+        is_public:
+          type: boolean
+          readOnly: true
+          description: Should the rating be public?
+        n_comparisons:
+          type: integer
+          readOnly: true
+          default: 0
+        criteria_scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContributorCriteriaScore'
+          readOnly: true
+      required:
+      - criteria_scores
+      - is_public
+      - n_comparisons
     Length3Cycles:
       type: object
       description: |-
@@ -2863,271 +3498,50 @@ components:
       - count
       - results
       - stats
-    MoralPhilosophyEnum:
+    Notifications_langEnum:
       enum:
-      - Not Specified
-      - Utilitarian
-      - Non-Utilitarian Consequentialist
-      - Deontological
-      - Virtue Ethics
-      - Mixed
-      - Other
+      - en
+      - fr
       type: string
-    NationalityEnum:
+      description: |-
+        * `en` - en
+        * `fr` - fr
+    OriginEnum:
       enum:
-      - Not Specified
-      - Afghanistan
-      - Åland Islands
-      - Albania
-      - Algeria
-      - American Samoa
-      - Andorra
-      - Angola
-      - Anguilla
-      - Antarctica
-      - Antigua and Barbuda
-      - Argentina
-      - Armenia
-      - Aruba
-      - Australia
-      - Austria
-      - Azerbaijan
-      - Bahamas
-      - Bahrain
-      - Bangladesh
-      - Barbados
-      - Belarus
-      - Belgium
-      - Belize
-      - Benin
-      - Bermuda
-      - Bhutan
-      - Bolivia
-      - Bonaire, Sint Eustatius and Saba
-      - Bosnia and Herzegovina
-      - Botswana
-      - Bouvet Island
-      - Brazil
-      - British Indian Ocean Territory
-      - Brunei
-      - Bulgaria
-      - Burkina Faso
-      - Burundi
-      - Cabo Verde
-      - Cambodia
-      - Cameroon
-      - Canada
-      - Cayman Islands
-      - Central African Republic
-      - Chad
-      - Chile
-      - China
-      - Christmas Island
-      - Cocos (Keeling) Islands
-      - Colombia
-      - Comoros
-      - Congo
-      - Congo (the Democratic Republic of the)
-      - Cook Islands
-      - Costa Rica
-      - Côte d'Ivoire
-      - Croatia
-      - Cuba
-      - Curaçao
-      - Cyprus
-      - Czechia
-      - Denmark
-      - Djibouti
-      - Dominica
-      - Dominican Republic
-      - Ecuador
-      - Egypt
-      - El Salvador
-      - Equatorial Guinea
-      - Eritrea
-      - Estonia
-      - Eswatini
-      - Ethiopia
-      - Falkland Islands (Malvinas)
-      - Faroe Islands
-      - Fiji
-      - Finland
-      - France
-      - French Guiana
-      - French Polynesia
-      - French Southern Territories
-      - Gabon
-      - Gambia
-      - Georgia
-      - Germany
-      - Ghana
-      - Gibraltar
-      - Greece
-      - Greenland
-      - Grenada
-      - Guadeloupe
-      - Guam
-      - Guatemala
-      - Guernsey
-      - Guinea
-      - Guinea-Bissau
-      - Guyana
-      - Haiti
-      - Heard Island and McDonald Islands
-      - Holy See
-      - Honduras
-      - Hong Kong
-      - Hungary
-      - Iceland
-      - India
-      - Indonesia
-      - Iran
-      - Iraq
-      - Ireland
-      - Isle of Man
-      - Israel
-      - Italy
-      - Jamaica
-      - Japan
-      - Jersey
-      - Jordan
-      - Kazakhstan
-      - Kenya
-      - Kiribati
-      - Kuwait
-      - Kyrgyzstan
-      - Laos
-      - Latvia
-      - Lebanon
-      - Lesotho
-      - Liberia
-      - Libya
-      - Liechtenstein
-      - Lithuania
-      - Luxembourg
-      - Macao
-      - Madagascar
-      - Malawi
-      - Malaysia
-      - Maldives
-      - Mali
-      - Malta
-      - Marshall Islands
-      - Martinique
-      - Mauritania
-      - Mauritius
-      - Mayotte
-      - Mexico
-      - Micronesia (Federated States of)
-      - Moldova
-      - Monaco
-      - Mongolia
-      - Montenegro
-      - Montserrat
-      - Morocco
-      - Mozambique
-      - Myanmar
-      - Namibia
-      - Nauru
-      - Nepal
-      - Netherlands
-      - New Caledonia
-      - New Zealand
-      - Nicaragua
-      - Niger
-      - Nigeria
-      - Niue
-      - Norfolk Island
-      - North Korea
-      - North Macedonia
-      - Northern Mariana Islands
-      - Norway
-      - Oman
-      - Pakistan
-      - Palau
-      - Palestine, State of
-      - Panama
-      - Papua New Guinea
-      - Paraguay
-      - Peru
-      - Philippines
-      - Pitcairn
-      - Poland
-      - Portugal
-      - Puerto Rico
-      - Qatar
-      - Réunion
-      - Romania
-      - Russia
-      - Rwanda
-      - Saint Barthélemy
-      - Saint Helena, Ascension and Tristan da Cunha
-      - Saint Kitts and Nevis
-      - Saint Lucia
-      - Saint Martin (French part)
-      - Saint Pierre and Miquelon
-      - Saint Vincent and the Grenadines
-      - Samoa
-      - San Marino
-      - Sao Tome and Principe
-      - Saudi Arabia
-      - Senegal
-      - Serbia
-      - Seychelles
-      - Sierra Leone
-      - Singapore
-      - Sint Maarten (Dutch part)
-      - Slovakia
-      - Slovenia
-      - Solomon Islands
-      - Somalia
-      - South Africa
-      - South Georgia and the South Sandwich Islands
-      - South Korea
-      - South Sudan
-      - Spain
-      - Sri Lanka
-      - Sudan
-      - Suriname
-      - Svalbard and Jan Mayen
-      - Sweden
-      - Switzerland
-      - Syria
-      - Taiwan
-      - Tajikistan
-      - Tanzania
-      - Thailand
-      - Timor-Leste
-      - Togo
-      - Tokelau
-      - Tonga
-      - Trinidad and Tobago
-      - Tunisia
-      - Turkey
-      - Turkmenistan
-      - Turks and Caicos Islands
-      - Tuvalu
-      - Uganda
-      - Ukraine
-      - United Arab Emirates
-      - United Kingdom
-      - United States Minor Outlying Islands
-      - United States of America
-      - Uruguay
-      - Uzbekistan
-      - Vanuatu
-      - Venezuela
-      - Vietnam
-      - Virgin Islands (British)
-      - Virgin Islands (U.S.)
-      - Wallis and Futuna
-      - Western Sahara
-      - Yemen
-      - Zambia
-      - Zimbabwe
+      - ASSOCIATION
+      - CONTRIBUTORS
       type: string
+      description: |-
+        * `ASSOCIATION` - Association
+        * `CONTRIBUTORS` - Contributors
+    PaginatedBannerList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=400&limit=100
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=200&limit=100
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Banner'
     PaginatedComparisonList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3148,6 +3562,9 @@ components:
             $ref: '#/components/schemas/Comparison'
     PaginatedContributorRatingList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3168,6 +3585,9 @@ components:
             $ref: '#/components/schemas/ContributorRating'
     PaginatedContributorRecommendationsList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3188,6 +3608,9 @@ components:
             $ref: '#/components/schemas/ContributorRecommendations'
     PaginatedEmailDomainList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3208,6 +3631,9 @@ components:
             $ref: '#/components/schemas/EmailDomain'
     PaginatedEntityList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3228,6 +3654,9 @@ components:
             $ref: '#/components/schemas/Entity'
     PaginatedEntityNoExtraFieldList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3248,6 +3677,9 @@ components:
             $ref: '#/components/schemas/EntityNoExtraField'
     PaginatedFAQEntryList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3268,6 +3700,9 @@ components:
             $ref: '#/components/schemas/FAQEntry'
     PaginatedRateLaterList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3286,8 +3721,34 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RateLater'
+    PaginatedRecommendationBaseList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=400&limit=100
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=200&limit=100
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendationBase'
     PaginatedRecommendationList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3306,8 +3767,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Recommendation'
-    PaginatedVideoSerializerWithCriteriaList:
+    PaginatedSubSampleList:
       type: object
+      required:
+      - count
+      - results
       properties:
         count:
           type: integer
@@ -3325,18 +3789,96 @@ components:
         results:
           type: array
           items:
-            $ref: '#/components/schemas/VideoSerializerWithCriteria'
+            $ref: '#/components/schemas/SubSample'
+    PaginatedTournesolEventList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=400&limit=100
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=200&limit=100
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TournesolEvent'
+    PaginatedUnconnectedEntityList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=400&limit=100
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?offset=200&limit=100
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnconnectedEntity'
+    PatchedComparisonUpdateRequest:
+      type: object
+      description: |-
+        A comparison serializer used only for updates.
+
+        Given the context determined by the view, it will represent or save the
+        comparison in the reverse order.
+
+        Use `ComparisonSerializer` for all other operations.
+      properties:
+        criteria_scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComparisonCriteriaScoreRequest'
+        duration_ms:
+          type: number
+          format: double
+          nullable: true
+          description: Time it took to rate the videos (in milliseconds)
     PatchedContributorRatingRequest:
       type: object
       properties:
         is_public:
           type: boolean
+          writeOnly: true
           description: Should the rating be public?
     PatchedContributorRatingUpdateAllRequest:
       type: object
       properties:
         is_public:
           type: boolean
+    PatchedTournesolUserSettingsRequest:
+      type: object
+      description: |-
+        A representation of all user settings of the Tournesol project.
+
+        This representation includes poll-agnostic settings in addition to the
+        specific settings of each poll.
+      properties:
+        general:
+          $ref: '#/components/schemas/GeneralUserSettingsRequest'
+        videos:
+          $ref: '#/components/schemas/VideosPollUserSettingsRequest'
     PatchedUserProfileRequest:
       type: object
       description: |-
@@ -3356,9 +3898,6 @@ components:
             only.
           pattern: ^[\w.@+-]+$
           maxLength: 150
-        is_demo:
-          type: boolean
-          description: Is a demo account?
         first_name:
           type: string
           nullable: true
@@ -3369,128 +3908,6 @@ components:
           nullable: true
           description: Last name
           maxLength: 100
-        title:
-          type: string
-          nullable: true
-          description: Your position
-        bio:
-          type: string
-          nullable: true
-          description: Self-description (other degrees, biography, ...)
-        comment_anonymously:
-          type: boolean
-          description: Comment anonymously by-default
-        show_online_presence:
-          type: boolean
-          description: Show my online presence on Tournesol
-        show_my_profile:
-          type: boolean
-          description: Show my profile on Tournesol
-        birth_year:
-          type: integer
-          maximum: 2100
-          minimum: 1900
-          nullable: true
-          description: Year of birth
-        gender:
-          allOf:
-          - $ref: '#/components/schemas/GenderEnum'
-          description: Your gender
-        nationality:
-          allOf:
-          - $ref: '#/components/schemas/NationalityEnum'
-          description: Your country of nationality
-        residence:
-          allOf:
-          - $ref: '#/components/schemas/ResidenceEnum'
-          description: Your country of residence
-        race:
-          allOf:
-          - $ref: '#/components/schemas/RaceEnum'
-          description: Your ethnicity
-        political_affiliation:
-          allOf:
-          - $ref: '#/components/schemas/PoliticalAffiliationEnum'
-          description: Your political preference
-        religion:
-          allOf:
-          - $ref: '#/components/schemas/ReligionEnum'
-          description: Your religion
-        degree_of_political_engagement:
-          allOf:
-          - $ref: '#/components/schemas/DegreeOfPoliticalEngagementEnum'
-          description: Your degree of political engagement
-        moral_philosophy:
-          allOf:
-          - $ref: '#/components/schemas/MoralPhilosophyEnum'
-          description: Your preferred moral philosophy
-        website:
-          type: string
-          format: uri
-          nullable: true
-          description: Your website URL
-          maxLength: 500
-        linkedin:
-          type: string
-          format: uri
-          nullable: true
-          description: Your LinkedIn URL
-          maxLength: 500
-        youtube:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Youtube channel URL
-          maxLength: 500
-        google_scholar:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Google Scholar URL
-          maxLength: 500
-        orcid:
-          type: string
-          format: uri
-          nullable: true
-          description: Your ORCID URL
-          maxLength: 500
-        researchgate:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Researchgate profile URL
-          maxLength: 500
-        twitter:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Twitter URL
-          maxLength: 500
-        avatar:
-          type: string
-          format: binary
-          nullable: true
-          description: Your profile picture.
-        voting_right:
-          type: number
-          format: float
-          nullable: true
-          description: The voting right assigned to the user based on the vouching
-            mechanism.
-        is_trusted:
-          type: boolean
-    PoliticalAffiliationEnum:
-      enum:
-      - Not Specified
-      - Extreme left
-      - Far left
-      - Left
-      - Centrist
-      - Right
-      - Far right
-      - Extreme right
-      - Other
-      type: string
     Poll:
       type: object
       properties:
@@ -3547,25 +3964,39 @@ components:
       required:
       - poll_name
       - signature
-    RaceEnum:
-      enum:
-      - Not Specified
-      - African
-      - African American
-      - American Indian
-      - Arabic or Middle Eastern
-      - Asian
-      - Caucasian
-      - Latino or Hispanic
-      - Mixed
-      - Unknown
-      - Other
-      type: string
     RateLater:
       type: object
       properties:
         entity:
           $ref: '#/components/schemas/RelatedEntity'
+        collective_rating:
+          allOf:
+          - $ref: '#/components/schemas/CollectiveRating'
+          readOnly: true
+          nullable: true
+        individual_rating:
+          allOf:
+          - $ref: '#/components/schemas/IndividualRating'
+          readOnly: true
+          nullable: true
+        entity_contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+        rate_later_metadata:
+          allOf:
+          - $ref: '#/components/schemas/RateLaterMetadata'
+          readOnly: true
+      required:
+      - collective_rating
+      - entity
+      - entity_contexts
+      - individual_rating
+      - rate_later_metadata
+    RateLaterMetadata:
+      type: object
+      properties:
         created_at:
           type: string
           format: date-time
@@ -3573,7 +4004,6 @@ components:
           description: Time at which the video is saved.
       required:
       - created_at
-      - entity
     RateLaterRequest:
       type: object
       properties:
@@ -3601,45 +4031,95 @@ components:
       required:
       - by
       - to
+    ReasonsEnum:
+      enum:
+      - insufficient_trust
+      - insufficient_tournesol_score
+      - moderation_by_association
+      - moderation_by_contributors
+      type: string
+      description: |-
+        * `insufficient_trust` - insufficient_trust
+        * `insufficient_tournesol_score` - insufficient_tournesol_score
+        * `moderation_by_association` - moderation_by_association
+        * `moderation_by_contributors` - moderation_by_contributors
     Recommendation:
       type: object
+      description: An entity recommended in a poll.
       properties:
-        uid:
-          type: string
-          description: A unique identifier, build with a namespace and an external
-            id.
-          maxLength: 144
-        type:
-          $ref: '#/components/schemas/TypeEnum'
-        n_comparisons:
-          type: integer
-        n_contributors:
-          type: integer
-        metadata:
-          type: object
-          additionalProperties: {}
+        entity:
+          allOf:
+          - $ref: '#/components/schemas/RelatedEntity'
           readOnly: true
-        total_score:
-          type: number
-          format: float
-        tournesol_score:
-          type: number
-          format: float
-          nullable: true
-          description: The aggregated of all criteria for all users in a specific
-            poll.
-        criteria_scores:
+        entity_contexts:
           type: array
           items:
-            $ref: '#/components/schemas/EntityCriteriaScore'
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+        collective_rating:
+          allOf:
+          - $ref: '#/components/schemas/ExtendedCollectiveRating'
+          readOnly: true
+          nullable: true
+        recommendation_metadata:
+          allOf:
+          - $ref: '#/components/schemas/RecommendationMetadata'
+          readOnly: true
       required:
-      - criteria_scores
-      - metadata
-      - n_comparisons
-      - n_contributors
+      - collective_rating
+      - entity
+      - entity_contexts
+      - recommendation_metadata
+    RecommendationBase:
+      type: object
+      description: |-
+        A base serializer for all recommendations.
+
+        The recommendations of a poll should always be provided with
+        the fields defined in this serializer.
+      properties:
+        entity:
+          allOf:
+          - $ref: '#/components/schemas/RelatedEntity'
+          readOnly: true
+        entity_contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+        collective_rating:
+          allOf:
+          - $ref: '#/components/schemas/ExtendedCollectiveRating'
+          readOnly: true
+          nullable: true
+      required:
+      - collective_rating
+      - entity
+      - entity_contexts
+    RecommendationMetadata:
+      type: object
+      properties:
+        total_score:
+          type: number
+          format: double
+          readOnly: true
+          nullable: true
+      required:
       - total_score
-      - type
-      - uid
+    Recommendations_defaultDateEnum:
+      enum:
+      - TODAY
+      - WEEK
+      - MONTH
+      - YEAR
+      - ALL_TIME
+      type: string
+      description: |-
+        * `TODAY` - today
+        * `WEEK` - week
+        * `MONTH` - month
+        * `YEAR` - year
+        * `ALL_TIME` - all_time
     RegisterEmail:
       type: object
       description: Default serializer used for e-mail registration (e-mail change).
@@ -3685,9 +4165,6 @@ components:
         email:
           type: string
           format: email
-        is_demo:
-          type: boolean
-          description: Is a demo account?
         first_name:
           type: string
           nullable: true
@@ -3698,118 +4175,20 @@ components:
           nullable: true
           description: Last name
           maxLength: 100
-        title:
-          type: string
-          nullable: true
-          description: Your position
-        bio:
-          type: string
-          nullable: true
-          description: Self-description (other degrees, biography, ...)
-        comment_anonymously:
-          type: boolean
-          description: Comment anonymously by-default
-        show_online_presence:
-          type: boolean
-          description: Show my online presence on Tournesol
-        show_my_profile:
-          type: boolean
-          description: Show my profile on Tournesol
-        birth_year:
-          type: integer
-          maximum: 2100
-          minimum: 1900
-          nullable: true
-          description: Year of birth
-        gender:
-          allOf:
-          - $ref: '#/components/schemas/GenderEnum'
-          description: Your gender
-        nationality:
-          allOf:
-          - $ref: '#/components/schemas/NationalityEnum'
-          description: Your country of nationality
-        residence:
-          allOf:
-          - $ref: '#/components/schemas/ResidenceEnum'
-          description: Your country of residence
-        race:
-          allOf:
-          - $ref: '#/components/schemas/RaceEnum'
-          description: Your ethnicity
-        political_affiliation:
-          allOf:
-          - $ref: '#/components/schemas/PoliticalAffiliationEnum'
-          description: Your political preference
-        religion:
-          allOf:
-          - $ref: '#/components/schemas/ReligionEnum'
-          description: Your religion
-        degree_of_political_engagement:
-          allOf:
-          - $ref: '#/components/schemas/DegreeOfPoliticalEngagementEnum'
-          description: Your degree of political engagement
-        moral_philosophy:
-          allOf:
-          - $ref: '#/components/schemas/MoralPhilosophyEnum'
-          description: Your preferred moral philosophy
-        website:
-          type: string
-          format: uri
-          nullable: true
-          description: Your website URL
-          maxLength: 500
-        linkedin:
-          type: string
-          format: uri
-          nullable: true
-          description: Your LinkedIn URL
-          maxLength: 500
-        youtube:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Youtube channel URL
-          maxLength: 500
-        google_scholar:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Google Scholar URL
-          maxLength: 500
-        orcid:
-          type: string
-          format: uri
-          nullable: true
-          description: Your ORCID URL
-          maxLength: 500
-        researchgate:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Researchgate profile URL
-          maxLength: 500
-        twitter:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Twitter URL
-          maxLength: 500
-        avatar:
-          type: string
-          format: uri
-          nullable: true
-          description: Your profile picture.
-        voting_right:
+        trust_score:
           type: number
-          format: float
+          format: double
+          readOnly: true
           nullable: true
-          description: The voting right assigned to the user based on the vouching
-            mechanism.
+          description: The trust score assigned to the user based on trusted domains
+            and the vouching mechanism.
+        settings:
+          $ref: '#/components/schemas/TournesolUserSettings'
       required:
       - email
       - id
       - password
+      - trust_score
       - username
     RegisterUserRequest:
       type: object
@@ -3837,9 +4216,6 @@ components:
           type: string
           format: email
           minLength: 1
-        is_demo:
-          type: boolean
-          description: Is a demo account?
         first_name:
           type: string
           nullable: true
@@ -3850,114 +4226,8 @@ components:
           nullable: true
           description: Last name
           maxLength: 100
-        title:
-          type: string
-          nullable: true
-          description: Your position
-        bio:
-          type: string
-          nullable: true
-          description: Self-description (other degrees, biography, ...)
-        comment_anonymously:
-          type: boolean
-          description: Comment anonymously by-default
-        show_online_presence:
-          type: boolean
-          description: Show my online presence on Tournesol
-        show_my_profile:
-          type: boolean
-          description: Show my profile on Tournesol
-        birth_year:
-          type: integer
-          maximum: 2100
-          minimum: 1900
-          nullable: true
-          description: Year of birth
-        gender:
-          allOf:
-          - $ref: '#/components/schemas/GenderEnum'
-          description: Your gender
-        nationality:
-          allOf:
-          - $ref: '#/components/schemas/NationalityEnum'
-          description: Your country of nationality
-        residence:
-          allOf:
-          - $ref: '#/components/schemas/ResidenceEnum'
-          description: Your country of residence
-        race:
-          allOf:
-          - $ref: '#/components/schemas/RaceEnum'
-          description: Your ethnicity
-        political_affiliation:
-          allOf:
-          - $ref: '#/components/schemas/PoliticalAffiliationEnum'
-          description: Your political preference
-        religion:
-          allOf:
-          - $ref: '#/components/schemas/ReligionEnum'
-          description: Your religion
-        degree_of_political_engagement:
-          allOf:
-          - $ref: '#/components/schemas/DegreeOfPoliticalEngagementEnum'
-          description: Your degree of political engagement
-        moral_philosophy:
-          allOf:
-          - $ref: '#/components/schemas/MoralPhilosophyEnum'
-          description: Your preferred moral philosophy
-        website:
-          type: string
-          format: uri
-          nullable: true
-          description: Your website URL
-          maxLength: 500
-        linkedin:
-          type: string
-          format: uri
-          nullable: true
-          description: Your LinkedIn URL
-          maxLength: 500
-        youtube:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Youtube channel URL
-          maxLength: 500
-        google_scholar:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Google Scholar URL
-          maxLength: 500
-        orcid:
-          type: string
-          format: uri
-          nullable: true
-          description: Your ORCID URL
-          maxLength: 500
-        researchgate:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Researchgate profile URL
-          maxLength: 500
-        twitter:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Twitter URL
-          maxLength: 500
-        avatar:
-          type: string
-          format: binary
-          nullable: true
-          description: Your profile picture.
-        voting_right:
-          type: number
-          format: float
-          nullable: true
-          description: The voting right assigned to the user based on the vouching
-            mechanism.
+        settings:
+          $ref: '#/components/schemas/TournesolUserSettingsRequest'
         password_confirm:
           type: string
           writeOnly: true
@@ -4012,18 +4282,6 @@ components:
           maxLength: 144
       required:
       - uid
-    ReligionEnum:
-      enum:
-      - Not Specified
-      - Christian
-      - Muslim
-      - Hindu
-      - Buddhist
-      - Jewish
-      - Atheist
-      - Agnostic
-      - Other
-      type: string
     ResetPassword:
       type: object
       properties:
@@ -4059,259 +4317,6 @@ components:
       - signature
       - timestamp
       - user_id
-    ResidenceEnum:
-      enum:
-      - Not Specified
-      - Afghanistan
-      - Åland Islands
-      - Albania
-      - Algeria
-      - American Samoa
-      - Andorra
-      - Angola
-      - Anguilla
-      - Antarctica
-      - Antigua and Barbuda
-      - Argentina
-      - Armenia
-      - Aruba
-      - Australia
-      - Austria
-      - Azerbaijan
-      - Bahamas
-      - Bahrain
-      - Bangladesh
-      - Barbados
-      - Belarus
-      - Belgium
-      - Belize
-      - Benin
-      - Bermuda
-      - Bhutan
-      - Bolivia
-      - Bonaire, Sint Eustatius and Saba
-      - Bosnia and Herzegovina
-      - Botswana
-      - Bouvet Island
-      - Brazil
-      - British Indian Ocean Territory
-      - Brunei
-      - Bulgaria
-      - Burkina Faso
-      - Burundi
-      - Cabo Verde
-      - Cambodia
-      - Cameroon
-      - Canada
-      - Cayman Islands
-      - Central African Republic
-      - Chad
-      - Chile
-      - China
-      - Christmas Island
-      - Cocos (Keeling) Islands
-      - Colombia
-      - Comoros
-      - Congo
-      - Congo (the Democratic Republic of the)
-      - Cook Islands
-      - Costa Rica
-      - Côte d'Ivoire
-      - Croatia
-      - Cuba
-      - Curaçao
-      - Cyprus
-      - Czechia
-      - Denmark
-      - Djibouti
-      - Dominica
-      - Dominican Republic
-      - Ecuador
-      - Egypt
-      - El Salvador
-      - Equatorial Guinea
-      - Eritrea
-      - Estonia
-      - Eswatini
-      - Ethiopia
-      - Falkland Islands (Malvinas)
-      - Faroe Islands
-      - Fiji
-      - Finland
-      - France
-      - French Guiana
-      - French Polynesia
-      - French Southern Territories
-      - Gabon
-      - Gambia
-      - Georgia
-      - Germany
-      - Ghana
-      - Gibraltar
-      - Greece
-      - Greenland
-      - Grenada
-      - Guadeloupe
-      - Guam
-      - Guatemala
-      - Guernsey
-      - Guinea
-      - Guinea-Bissau
-      - Guyana
-      - Haiti
-      - Heard Island and McDonald Islands
-      - Holy See
-      - Honduras
-      - Hong Kong
-      - Hungary
-      - Iceland
-      - India
-      - Indonesia
-      - Iran
-      - Iraq
-      - Ireland
-      - Isle of Man
-      - Israel
-      - Italy
-      - Jamaica
-      - Japan
-      - Jersey
-      - Jordan
-      - Kazakhstan
-      - Kenya
-      - Kiribati
-      - Kuwait
-      - Kyrgyzstan
-      - Laos
-      - Latvia
-      - Lebanon
-      - Lesotho
-      - Liberia
-      - Libya
-      - Liechtenstein
-      - Lithuania
-      - Luxembourg
-      - Macao
-      - Madagascar
-      - Malawi
-      - Malaysia
-      - Maldives
-      - Mali
-      - Malta
-      - Marshall Islands
-      - Martinique
-      - Mauritania
-      - Mauritius
-      - Mayotte
-      - Mexico
-      - Micronesia (Federated States of)
-      - Moldova
-      - Monaco
-      - Mongolia
-      - Montenegro
-      - Montserrat
-      - Morocco
-      - Mozambique
-      - Myanmar
-      - Namibia
-      - Nauru
-      - Nepal
-      - Netherlands
-      - New Caledonia
-      - New Zealand
-      - Nicaragua
-      - Niger
-      - Nigeria
-      - Niue
-      - Norfolk Island
-      - North Korea
-      - North Macedonia
-      - Northern Mariana Islands
-      - Norway
-      - Oman
-      - Pakistan
-      - Palau
-      - Palestine, State of
-      - Panama
-      - Papua New Guinea
-      - Paraguay
-      - Peru
-      - Philippines
-      - Pitcairn
-      - Poland
-      - Portugal
-      - Puerto Rico
-      - Qatar
-      - Réunion
-      - Romania
-      - Russia
-      - Rwanda
-      - Saint Barthélemy
-      - Saint Helena, Ascension and Tristan da Cunha
-      - Saint Kitts and Nevis
-      - Saint Lucia
-      - Saint Martin (French part)
-      - Saint Pierre and Miquelon
-      - Saint Vincent and the Grenadines
-      - Samoa
-      - San Marino
-      - Sao Tome and Principe
-      - Saudi Arabia
-      - Senegal
-      - Serbia
-      - Seychelles
-      - Sierra Leone
-      - Singapore
-      - Sint Maarten (Dutch part)
-      - Slovakia
-      - Slovenia
-      - Solomon Islands
-      - Somalia
-      - South Africa
-      - South Georgia and the South Sandwich Islands
-      - South Korea
-      - South Sudan
-      - Spain
-      - Sri Lanka
-      - Sudan
-      - Suriname
-      - Svalbard and Jan Mayen
-      - Sweden
-      - Switzerland
-      - Syria
-      - Taiwan
-      - Tajikistan
-      - Tanzania
-      - Thailand
-      - Timor-Leste
-      - Togo
-      - Tokelau
-      - Tonga
-      - Trinidad and Tobago
-      - Tunisia
-      - Turkey
-      - Turkmenistan
-      - Turks and Caicos Islands
-      - Tuvalu
-      - Uganda
-      - Ukraine
-      - United Arab Emirates
-      - United Kingdom
-      - United States Minor Outlying Islands
-      - United States of America
-      - Uruguay
-      - Uzbekistan
-      - Vanuatu
-      - Venezuela
-      - Vietnam
-      - Virgin Islands (British)
-      - Virgin Islands (U.S.)
-      - Wallis and Futuna
-      - Western Sahara
-      - Yemen
-      - Zambia
-      - Zimbabwe
-      type: string
     ScoreInconsistencies:
       type: object
       description: |-
@@ -4341,7 +4346,7 @@ components:
       properties:
         mean_inconsistency:
           type: number
-          format: float
+          format: double
         inconsistent_comparisons_count:
           type: integer
         comparisons_count:
@@ -4356,7 +4361,7 @@ components:
       properties:
         inconsistency:
           type: number
-          format: float
+          format: double
         criteria:
           type: string
         entity_1_uid:
@@ -4365,18 +4370,21 @@ components:
           type: string
         entity_1_rating:
           type: number
-          format: float
+          format: double
         entity_2_rating:
           type: number
-          format: float
+          format: double
         comparison_score:
           type: number
-          format: float
+          format: double
+        comparison_score_max:
+          type: integer
         expected_comparison_score:
           type: number
-          format: float
+          format: double
       required:
       - comparison_score
+      - comparison_score_max
       - criteria
       - entity_1_rating
       - entity_1_uid
@@ -4403,11 +4411,165 @@ components:
       - ACK
       - PD
       type: string
+      description: |-
+        * `RJ` - Rejected
+        * `ACK` - Accepted
+        * `PD` - Pending
+    SubSample:
+      type: object
+      properties:
+        entity:
+          $ref: '#/components/schemas/RelatedEntity'
+        entity_contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+          default: []
+        individual_rating:
+          allOf:
+          - $ref: '#/components/schemas/ExtendedInvididualRating'
+          readOnly: true
+        collective_rating:
+          allOf:
+          - $ref: '#/components/schemas/CollectiveRating'
+          readOnly: true
+        subsample_metadata:
+          allOf:
+          - $ref: '#/components/schemas/SubSampleMetadata'
+          readOnly: true
+      required:
+      - collective_rating
+      - entity
+      - entity_contexts
+      - individual_rating
+      - subsample_metadata
+    SubSampleMetadata:
+      type: object
+      properties:
+        bucket:
+          type: integer
+          readOnly: true
+      required:
+      - bucket
+    TournesolEvent:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Used as an URL slug. Leave it blank to automatically build
+            it from the title.
+          maxLength: 255
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          description: The title of the event.
+          maxLength: 255
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
+        date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date and time of the event according to the server time.
+        date_as_tz_europe_paris:
+          type: string
+          nullable: true
+          readOnly: true
+        speakers:
+          type: string
+          nullable: true
+          description: A list of speakers and their titles (researcher, PhD student,
+            etc.).
+        abstract:
+          type: string
+          nullable: true
+          description: Description of the event.
+        invitation_link:
+          type: string
+          format: uri
+          nullable: true
+          description: Allows the users to join the event.
+          maxLength: 200
+        youtube_link:
+          type: string
+          format: uri
+          nullable: true
+          description: The YouTube link of the recorded event.
+          maxLength: 200
+      required:
+      - date_as_tz_europe_paris
+      - title
+    TournesolUserSettings:
+      type: object
+      description: |-
+        A representation of all user settings of the Tournesol project.
+
+        This representation includes poll-agnostic settings in addition to the
+        specific settings of each poll.
+      properties:
+        general:
+          $ref: '#/components/schemas/GeneralUserSettings'
+        videos:
+          $ref: '#/components/schemas/VideosPollUserSettings'
+    TournesolUserSettingsRequest:
+      type: object
+      description: |-
+        A representation of all user settings of the Tournesol project.
+
+        This representation includes poll-agnostic settings in addition to the
+        specific settings of each poll.
+      properties:
+        general:
+          $ref: '#/components/schemas/GeneralUserSettingsRequest'
+        videos:
+          $ref: '#/components/schemas/VideosPollUserSettingsRequest'
     TypeEnum:
       enum:
       - video
       - candidate_fr_2022
       type: string
+      description: |-
+        * `video` - Video
+        * `candidate_fr_2022` - Candidate (FR 2022)
+    UnconnectedEntity:
+      type: object
+      properties:
+        entity:
+          $ref: '#/components/schemas/EntityNoExtraField'
+        entity_contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityContext'
+          readOnly: true
+          default: []
+      required:
+      - entity
+      - entity_contexts
+    UnsafeStatus:
+      type: object
+      properties:
+        status:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReasonsEnum'
+      required:
+      - reasons
+      - status
+    UnsafeStatusRequest:
+      type: object
+      properties:
+        status:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReasonsEnum'
+      required:
+      - reasons
+      - status
     UserProfile:
       type: object
       description: |-
@@ -4434,9 +4596,6 @@ components:
           format: email
           readOnly: true
           title: Email address
-        is_demo:
-          type: boolean
-          description: Is a demo account?
         first_name:
           type: string
           nullable: true
@@ -4447,120 +4606,27 @@ components:
           nullable: true
           description: Last name
           maxLength: 100
-        title:
-          type: string
-          nullable: true
-          description: Your position
-        bio:
-          type: string
-          nullable: true
-          description: Self-description (other degrees, biography, ...)
-        comment_anonymously:
-          type: boolean
-          description: Comment anonymously by-default
-        show_online_presence:
-          type: boolean
-          description: Show my online presence on Tournesol
-        show_my_profile:
-          type: boolean
-          description: Show my profile on Tournesol
-        birth_year:
-          type: integer
-          maximum: 2100
-          minimum: 1900
-          nullable: true
-          description: Year of birth
-        gender:
-          allOf:
-          - $ref: '#/components/schemas/GenderEnum'
-          description: Your gender
-        nationality:
-          allOf:
-          - $ref: '#/components/schemas/NationalityEnum'
-          description: Your country of nationality
-        residence:
-          allOf:
-          - $ref: '#/components/schemas/ResidenceEnum'
-          description: Your country of residence
-        race:
-          allOf:
-          - $ref: '#/components/schemas/RaceEnum'
-          description: Your ethnicity
-        political_affiliation:
-          allOf:
-          - $ref: '#/components/schemas/PoliticalAffiliationEnum'
-          description: Your political preference
-        religion:
-          allOf:
-          - $ref: '#/components/schemas/ReligionEnum'
-          description: Your religion
-        degree_of_political_engagement:
-          allOf:
-          - $ref: '#/components/schemas/DegreeOfPoliticalEngagementEnum'
-          description: Your degree of political engagement
-        moral_philosophy:
-          allOf:
-          - $ref: '#/components/schemas/MoralPhilosophyEnum'
-          description: Your preferred moral philosophy
-        website:
-          type: string
-          format: uri
-          nullable: true
-          description: Your website URL
-          maxLength: 500
-        linkedin:
-          type: string
-          format: uri
-          nullable: true
-          description: Your LinkedIn URL
-          maxLength: 500
-        youtube:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Youtube channel URL
-          maxLength: 500
-        google_scholar:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Google Scholar URL
-          maxLength: 500
-        orcid:
-          type: string
-          format: uri
-          nullable: true
-          description: Your ORCID URL
-          maxLength: 500
-        researchgate:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Researchgate profile URL
-          maxLength: 500
-        twitter:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Twitter URL
-          maxLength: 500
-        avatar:
-          type: string
-          format: uri
-          nullable: true
-          description: Your profile picture.
-        voting_right:
+        trust_score:
           type: number
-          format: float
+          format: double
+          readOnly: true
           nullable: true
-          description: The voting right assigned to the user based on the vouching
-            mechanism.
+          description: The trust score assigned to the user based on trusted domains
+            and the vouching mechanism.
+        settings:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+          description: The user' preferences.
         is_trusted:
           type: boolean
+          readOnly: true
       required:
       - email
       - id
       - is_trusted
+      - settings
+      - trust_score
       - username
     UserProfileRequest:
       type: object
@@ -4581,9 +4647,6 @@ components:
             only.
           pattern: ^[\w.@+-]+$
           maxLength: 150
-        is_demo:
-          type: boolean
-          description: Is a demo account?
         first_name:
           type: string
           nullable: true
@@ -4594,118 +4657,7 @@ components:
           nullable: true
           description: Last name
           maxLength: 100
-        title:
-          type: string
-          nullable: true
-          description: Your position
-        bio:
-          type: string
-          nullable: true
-          description: Self-description (other degrees, biography, ...)
-        comment_anonymously:
-          type: boolean
-          description: Comment anonymously by-default
-        show_online_presence:
-          type: boolean
-          description: Show my online presence on Tournesol
-        show_my_profile:
-          type: boolean
-          description: Show my profile on Tournesol
-        birth_year:
-          type: integer
-          maximum: 2100
-          minimum: 1900
-          nullable: true
-          description: Year of birth
-        gender:
-          allOf:
-          - $ref: '#/components/schemas/GenderEnum'
-          description: Your gender
-        nationality:
-          allOf:
-          - $ref: '#/components/schemas/NationalityEnum'
-          description: Your country of nationality
-        residence:
-          allOf:
-          - $ref: '#/components/schemas/ResidenceEnum'
-          description: Your country of residence
-        race:
-          allOf:
-          - $ref: '#/components/schemas/RaceEnum'
-          description: Your ethnicity
-        political_affiliation:
-          allOf:
-          - $ref: '#/components/schemas/PoliticalAffiliationEnum'
-          description: Your political preference
-        religion:
-          allOf:
-          - $ref: '#/components/schemas/ReligionEnum'
-          description: Your religion
-        degree_of_political_engagement:
-          allOf:
-          - $ref: '#/components/schemas/DegreeOfPoliticalEngagementEnum'
-          description: Your degree of political engagement
-        moral_philosophy:
-          allOf:
-          - $ref: '#/components/schemas/MoralPhilosophyEnum'
-          description: Your preferred moral philosophy
-        website:
-          type: string
-          format: uri
-          nullable: true
-          description: Your website URL
-          maxLength: 500
-        linkedin:
-          type: string
-          format: uri
-          nullable: true
-          description: Your LinkedIn URL
-          maxLength: 500
-        youtube:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Youtube channel URL
-          maxLength: 500
-        google_scholar:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Google Scholar URL
-          maxLength: 500
-        orcid:
-          type: string
-          format: uri
-          nullable: true
-          description: Your ORCID URL
-          maxLength: 500
-        researchgate:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Researchgate profile URL
-          maxLength: 500
-        twitter:
-          type: string
-          format: uri
-          nullable: true
-          description: Your Twitter URL
-          maxLength: 500
-        avatar:
-          type: string
-          format: binary
-          nullable: true
-          description: Your profile picture.
-        voting_right:
-          type: number
-          format: float
-          nullable: true
-          description: The voting right assigned to the user based on the vouching
-            mechanism.
-        is_trusted:
-          type: boolean
       required:
-      - is_trusted
       - username
     VerifyEmail:
       type: object
@@ -4791,7 +4743,7 @@ components:
           description: Video description, from YouTube
         publication_date:
           type: string
-          format: date
+          format: date-time
           readOnly: true
           nullable: true
         views:
@@ -4810,12 +4762,11 @@ components:
         rating_n_ratings:
           type: integer
           readOnly: true
-          description: Total number of pairwise comparisons for this videofrom certified
-            contributors
+          default: 0
         rating_n_contributors:
           type: integer
           readOnly: true
-          description: Total number of certified contributors who rated the video
+          default: 0
         duration:
           type: integer
           readOnly: true
@@ -4846,83 +4797,116 @@ components:
           pattern: ^([A-Za-z0-9-_]{11})$
       required:
       - video_id
-    VideoSerializerWithCriteria:
+    VideosPollUserSettings:
       type: object
+      description: |-
+        The settings specific to the `videos` poll.
+
+        Also inherit the settings common to each poll.
       properties:
-        uid:
-          type: string
-          description: A unique identifier, build with a namespace and an external
-            id.
-          maxLength: 144
-        name:
-          type: string
-          readOnly: true
-          description: Video title
-        description:
-          type: string
-          readOnly: true
-          nullable: true
-          description: Video description, from YouTube
-        publication_date:
-          type: string
-          format: date
-          readOnly: true
-          nullable: true
-        views:
-          type: integer
-          readOnly: true
-          nullable: true
-        uploader:
-          type: string
-          readOnly: true
-          nullable: true
-          description: Name of the channel on YouTube
-        language:
-          type: string
-          readOnly: true
-          nullable: true
-        rating_n_ratings:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          description: Total number of pairwise comparisons for this videofrom certified
-            contributors
-        rating_n_contributors:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-          description: Total number of certified contributors who rated the video
-        duration:
-          type: integer
-          readOnly: true
-          nullable: true
-        video_id:
-          type: string
-          description: Video ID from YouTube URL, matches ^[A-Za-z0-9-_]{11}$
-          pattern: ^([A-Za-z0-9-_]{11})$
-        tournesol_score:
-          type: number
-          format: float
-          readOnly: true
-          nullable: true
-          description: The aggregated of all criteria for all users in a specific
-            poll.
-        criteria_scores:
+        comparison__auto_select_entities:
+          type: boolean
+        comparison__criteria_order:
           type: array
           items:
-            $ref: '#/components/schemas/EntityCriteriaScore'
-      required:
-      - criteria_scores
-      - description
-      - duration
-      - language
-      - name
-      - publication_date
-      - tournesol_score
-      - uid
-      - uploader
-      - video_id
-      - views
+            type: string
+        comparison_ui__weekly_collective_goal_display:
+          oneOf:
+          - $ref: '#/components/schemas/ComparisonUi_weeklyCollectiveGoalDisplayEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        comparison_ui__weekly_collective_goal_mobile:
+          type: boolean
+        rate_later__auto_remove:
+          type: integer
+        extension__search_reco:
+          type: boolean
+          description: Whether Tournesol recommendations should be integrated in Youtube.com
+            search results.
+        recommendations__default_date:
+          oneOf:
+          - $ref: '#/components/schemas/Recommendations_defaultDateEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        recommendations__default_languages:
+          type: array
+          items:
+            type: string
+        recommendations__default_unsafe:
+          type: boolean
+        recommendations__default_exclude_compared_entities:
+          type: boolean
+        feed_foryou__date:
+          oneOf:
+          - $ref: '#/components/schemas/FeedForyou_dateEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        feed_foryou__languages:
+          type: array
+          items:
+            type: string
+        feed_foryou__unsafe:
+          type: boolean
+        feed_foryou__exclude_compared_entities:
+          type: boolean
+        feed_topitems__languages:
+          type: array
+          items:
+            type: string
+    VideosPollUserSettingsRequest:
+      type: object
+      description: |-
+        The settings specific to the `videos` poll.
+
+        Also inherit the settings common to each poll.
+      properties:
+        comparison__auto_select_entities:
+          type: boolean
+        comparison__criteria_order:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        comparison_ui__weekly_collective_goal_display:
+          oneOf:
+          - $ref: '#/components/schemas/ComparisonUi_weeklyCollectiveGoalDisplayEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        comparison_ui__weekly_collective_goal_mobile:
+          type: boolean
+        rate_later__auto_remove:
+          type: integer
+        extension__search_reco:
+          type: boolean
+          description: Whether Tournesol recommendations should be integrated in Youtube.com
+            search results.
+        recommendations__default_date:
+          oneOf:
+          - $ref: '#/components/schemas/Recommendations_defaultDateEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        recommendations__default_languages:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        recommendations__default_unsafe:
+          type: boolean
+        recommendations__default_exclude_compared_entities:
+          type: boolean
+        feed_foryou__date:
+          oneOf:
+          - $ref: '#/components/schemas/FeedForyou_dateEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        feed_foryou__languages:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        feed_foryou__unsafe:
+          type: boolean
+        feed_foryou__exclude_compared_entities:
+          type: boolean
+        feed_topitems__languages:
+          type: array
+          items:
+            type: string
+            minLength: 1
   securitySchemes:
     cookieAuth:
       type: apiKey

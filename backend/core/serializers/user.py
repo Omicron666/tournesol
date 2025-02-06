@@ -9,6 +9,7 @@ from rest_registration.api.serializers import (
 )
 
 from core.models.user import User
+from core.serializers.user_settings import TournesolUserSettingsSerializer
 
 RESERVED_USERNAMES = ["me"]
 
@@ -33,6 +34,11 @@ def _validate_username(value):
 
 class RegisterUserSerializer(DefaultRegisterUserSerializer):
     email = iunique_email
+    settings = TournesolUserSettingsSerializer(required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.Meta.read_only_fields += ("trust_score",)
 
     def validate_username(self, value):
         return _validate_username(value)
@@ -51,10 +57,11 @@ class RegisterEmailSerializer(DefaultRegisterEmailSerializer):
 
 
 class UserProfileSerializer(DefaultUserProfileSerializer):
-    is_trusted = BooleanField()
+    is_trusted = BooleanField(read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Default writable fields are defined in setting REST_REGISTRATION.USER_EDITABLE_FIELDS
         extra_fields = ("is_trusted",)
         self.Meta.fields += extra_fields
         self.Meta.read_only_fields += extra_fields

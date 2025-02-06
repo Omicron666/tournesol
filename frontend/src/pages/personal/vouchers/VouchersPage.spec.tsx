@@ -11,6 +11,8 @@ import {
   CancelablePromise,
   GivenVoucher,
   ReadOnlyVoucher,
+  AccountsService,
+  UserProfile,
 } from 'src/services/openapi';
 
 import VouchersPage from './VouchersPage';
@@ -48,9 +50,8 @@ describe('VouchersPage', () => {
   };
 
   beforeEach(() => {
-    jest
-      .spyOn(UsersService, 'usersMeVouchersGivenList')
-      .mockImplementation((async () => [
+    vi.spyOn(UsersService, 'usersMeVouchersGivenList').mockImplementation(
+      (async () => [
         {
           to: 'to_username1',
           by: 'by_username',
@@ -59,13 +60,13 @@ describe('VouchersPage', () => {
           to: 'to_username2',
           by: 'by_username',
         },
-      ]) as () => CancelablePromise<GivenVoucher[]>);
+      ]) as () => CancelablePromise<GivenVoucher[]>
+    );
   });
 
   beforeEach(() => {
-    jest
-      .spyOn(UsersService, 'usersMeVouchersReceivedList')
-      .mockImplementation((async () => [
+    vi.spyOn(UsersService, 'usersMeVouchersReceivedList').mockImplementation(
+      (async () => [
         {
           to: 'current user',
           by: 'received username 1',
@@ -74,7 +75,16 @@ describe('VouchersPage', () => {
           to: 'current user',
           by: 'received username 2',
         },
-      ]) as () => CancelablePromise<ReadOnlyVoucher[]>);
+      ]) as () => CancelablePromise<ReadOnlyVoucher[]>
+    );
+  });
+
+  beforeEach(() => {
+    vi.spyOn(AccountsService, 'accountsProfileRetrieve').mockImplementation(
+      (async () => ({
+        trust_score: 0.4574183,
+      })) as () => CancelablePromise<UserProfile>
+    );
   });
 
   it('creates a voucher when the form is submitted', async () => {
@@ -82,7 +92,7 @@ describe('VouchersPage', () => {
       to: 'someone',
       by: 'current user',
     };
-    const createVoucherServiceSpy = jest
+    const createVoucherServiceSpy = vi
       .spyOn(UsersService, 'usersMeVouchersCreate')
       .mockImplementation(
         (async () => createdVoucher) as () => CancelablePromise<GivenVoucher>
@@ -115,11 +125,11 @@ describe('VouchersPage', () => {
       'error'
     );
 
-    jest
-      .spyOn(UsersService, 'usersMeVouchersCreate')
-      .mockImplementation((async (): Promise<GivenVoucher> => {
+    vi.spyOn(UsersService, 'usersMeVouchersCreate').mockImplementation(
+      (async (): Promise<GivenVoucher> => {
         throw error;
-      }) as () => CancelablePromise<GivenVoucher>);
+      }) as () => CancelablePromise<GivenVoucher>
+    );
 
     render(<Component />);
     await act(() => submitForm({ username: 'someone' }));
@@ -155,7 +165,7 @@ describe('VouchersPage', () => {
   });
 
   it('deletes a given voucher', async () => {
-    const destroyVoucherServiceSpy = jest
+    const destroyVoucherServiceSpy = vi
       .spyOn(UsersService, 'usersMeVouchersGivenDestroy')
       .mockImplementation(
         (async () => undefined) as () => CancelablePromise<void>
@@ -191,7 +201,7 @@ describe('VouchersPage', () => {
       },
       'error'
     );
-    const destroyVoucherServiceSpy = jest
+    const destroyVoucherServiceSpy = vi
       .spyOn(UsersService, 'usersMeVouchersGivenDestroy')
       .mockImplementation((async (): Promise<void> => {
         throw error;
@@ -224,5 +234,10 @@ describe('VouchersPage', () => {
      */
     screen.findByText('Not found');
     expect(voucherElement).toBeInTheDocument();
+  });
+
+  it('displays vouching score', async () => {
+    render(<Component />);
+    await screen.findByText('personalVouchers.trustScore.medium');
   });
 });
